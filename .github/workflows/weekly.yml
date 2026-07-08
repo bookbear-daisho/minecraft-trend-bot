@@ -3,7 +3,7 @@ name: Weekly Minecraft Trend Report
 on:
   schedule:
     # 日本時間 毎週月曜9:00 = UTC 毎週月曜0:00
-    - cron: "30 6 * * 3"
+    - cron: "45 6 * * 3"
   workflow_dispatch:
 
 permissions:
@@ -23,7 +23,7 @@ jobs:
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
-          TEAMS_POST_MODE: incomingWebhook
+          TEAMS_POST_MODE: powerAutomate
           MAX_RESULTS_PER_QUERY: 25
           TARGET_DAYS: 30
       - name: Commit updated data
