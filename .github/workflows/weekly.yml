@@ -3,7 +3,7 @@ name: Weekly Minecraft Trend Report
 on:
   schedule:
     # 日本時間 毎週月曜9:00 = UTC 毎週月曜0:00
-    - cron: "0 8 * * 3"
+    - cron: "0 * * * *"
   workflow_dispatch:
 
 permissions:
