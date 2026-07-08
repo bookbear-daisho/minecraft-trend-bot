@@ -1,0 +1,33 @@
+name: Weekly Minecraft Trend Report
+
+on:
+  schedule:
+    # 日本時間 毎週月曜9:00 = UTC 毎週月曜0:00
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci
+      - run: npm run build
+      - run: npm start
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+          TEAMS_POST_MODE: incomingWebhook
+          MAX_RESULTS_PER_QUERY: 25
+          TARGET_DAYS: 30
+      - name: Commit updated data
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          git diff --cached --quiet || git commit -m "chore: update weekly minecraft trend data"
+          git push

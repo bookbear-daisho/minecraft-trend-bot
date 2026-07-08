@@ -1,0 +1,24 @@
+{
+  "name": "minecraft-trend-bot",
+  "version": "1.0.0",
+  "description": "YouTube上のマインクラフト関連動画を週次で集計し、Microsoft Teamsへ人気ランキング・傾向分析レポートを自動投稿するバッチツール",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
