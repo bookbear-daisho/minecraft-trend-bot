@@ -22,6 +22,7 @@ function toVideoRecord(item: YoutubeVideoItem, fetchedAt: string): VideoRecord {
     publishedAt: item.snippet.publishedAt,
     url: `https://www.youtube.com/watch?v=${item.id}`,
     thumbnailUrl: pickThumbnail(item.snippet.thumbnails),
+    description: item.snippet.description ?? "",
 
     viewCount: Number(statistics.viewCount ?? 0),
     likeCount: Number(statistics.likeCount ?? 0),

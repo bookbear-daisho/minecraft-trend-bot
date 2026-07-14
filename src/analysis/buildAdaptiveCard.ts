@@ -1,5 +1,7 @@
+import { SHAREPOINT_DASHBOARD_URL } from "../config";
 import { TrendSummary, VideoRecord } from "../types/video";
 import { defaultIdeaGenerator, IdeaGenerator } from "./buildReport";
+import { rankVideos } from "./rankVideos";
 
 const TOP_N = 10;
 
@@ -7,6 +9,12 @@ export type AdaptiveCard = Record<string, unknown>;
 
 function formatNumber(n: number): string {
   return Math.round(n).toLocaleString("ja-JP");
+}
+
+function excerpt(text: string, maxLen: number): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (clean.length === 0) return "";
+  return clean.length <= maxLen ? clean : `${clean.slice(0, maxLen)}…`;
 }
 
 function formatDateTime(date: Date): string {
@@ -45,6 +53,17 @@ function buildVideoContainer(video: VideoRecord, rank: number): AdaptiveCard {
         isSubtle: true,
         size: "Small",
       },
+      ...(excerpt(video.description, 80)
+        ? [
+            {
+              type: "TextBlock",
+              text: `概要: ${excerpt(video.description, 80)}`,
+              wrap: true,
+              isSubtle: true,
+              size: "Small",
+            },
+          ]
+        : []),
       {
         type: "ActionSet",
         actions: [
@@ -88,7 +107,7 @@ export function buildAdaptiveCard(
   ideaGenerator: IdeaGenerator = defaultIdeaGenerator,
 ): AdaptiveCard {
   const { trendNotes, curriculumIdeas, videoIdeas } = ideaGenerator(videos, trend);
-  const ranked = [...videos].sort((a, b) => (b.trendScore ?? 0) - (a.trendScore ?? 0)).slice(0, TOP_N);
+  const ranked = rankVideos(videos, TOP_N);
 
   const body: AdaptiveCard[] = [
     {
@@ -119,10 +138,26 @@ export function buildAdaptiveCard(
     ...buildListSection("🎥 こっぴーふーチャンネル動画案", videoIdeas),
   ];
 
+  const actions: AdaptiveCard[] = SHAREPOINT_DASHBOARD_URL
+    ? [
+        {
+          type: "ActionSet",
+          spacing: "Large",
+          actions: [
+            {
+              type: "Action.OpenUrl",
+              title: "📊 分析ダッシュボードを開く(SharePoint)",
+              url: SHAREPOINT_DASHBOARD_URL,
+            },
+          ],
+        },
+      ]
+    : [];
+
   return {
     type: "AdaptiveCard",
     $schema: "http://adaptivecards.io/schemas/adaptive-card.json",
     version: "1.4",
-    body,
+    body: [...body, ...actions],
   };
 }

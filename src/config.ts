@@ -16,6 +16,21 @@ export const TEAMS_POST_MODE: "incomingWebhook" | "powerAutomate" =
 export const MAX_RESULTS_PER_QUERY = Number(process.env.MAX_RESULTS_PER_QUERY ?? 25);
 export const TARGET_DAYS = Number(process.env.TARGET_DAYS ?? 30);
 
+// SharePointへの履歴保存(分析用UI向け)。未設定の場合は何もせずスキップする。
+export const SHAREPOINT_ENABLED = process.env.SHAREPOINT_ENABLED === "true";
+export const SHAREPOINT_TENANT_ID = process.env.SHAREPOINT_TENANT_ID ?? "";
+export const SHAREPOINT_CLIENT_ID = process.env.SHAREPOINT_CLIENT_ID ?? "";
+export const SHAREPOINT_CLIENT_SECRET = process.env.SHAREPOINT_CLIENT_SECRET ?? "";
+// 例: contoso.sharepoint.com
+export const SHAREPOINT_SITE_HOSTNAME = process.env.SHAREPOINT_SITE_HOSTNAME ?? "";
+// 例: /sites/nikorihito (サイトコレクションの相対パス)
+export const SHAREPOINT_SITE_PATH = process.env.SHAREPOINT_SITE_PATH ?? "";
+export const SHAREPOINT_LIST_NAME = process.env.SHAREPOINT_LIST_NAME ?? "MinecraftTrendHistory";
+// 毎週SharePointに保存する件数(全候補を貯めるとリストが肥大化するため上位のみ保存)
+export const SHAREPOINT_SAVE_TOP_N = Number(process.env.SHAREPOINT_SAVE_TOP_N ?? 30);
+// Teamsカードの「分析ダッシュボードを開く」ボタンのリンク先(SharePointページのURL)
+export const SHAREPOINT_DASHBOARD_URL = process.env.SHAREPOINT_DASHBOARD_URL ?? "";
+
 // 検索キーワード(search.list で使用)
 export const SEARCH_QUERIES: string[] = [
   "マイクラ",

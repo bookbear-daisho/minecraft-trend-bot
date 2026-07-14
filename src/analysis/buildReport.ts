@@ -7,6 +7,24 @@ function formatNumber(n: number): string {
   return Math.round(n).toLocaleString("ja-JP");
 }
 
+function excerpt(text: string, maxLen: number): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  if (clean.length === 0) return "";
+  return clean.length <= maxLen ? clean : `${clean.slice(0, maxLen)}…`;
+}
+
+/**
+ * 動画を見なくても内容がある程度わかるよう、タイトル・チャンネル・週間増加数・
+ * 概要欄の冒頭を1行にまとめる。
+ */
+function describeVideo(video: VideoRecord): string {
+  const increase = Math.max(0, video.weeklyViewIncrease ?? 0);
+  const tagText = video.tags.length > 0 ? video.tags.join("/") : "ジャンル不明";
+  const desc = excerpt(video.description, 60);
+  const base = `『${video.title}』(${video.channelTitle}・${tagText}系・週間+${formatNumber(increase)}再生)`;
+  return desc ? `${base} — ${desc}` : base;
+}
+
 function formatDateTime(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(
@@ -114,48 +132,59 @@ export type IdeaGenerationResult = {
 
 export type IdeaGenerator = (videos: VideoRecord[], trend: TrendSummary) => IdeaGenerationResult;
 
+function primaryTemplateTag(video: VideoRecord): string | undefined {
+  return video.tags.find((tag) => IDEA_TEMPLATES[tag]);
+}
+
 /**
  * ルールベースのアイデア生成(AI APIなし)。
+ * タグだけで一般化せず、実際に伸びている動画のタイトル・チャンネル・数値を
+ * 提案文に埋め込むことで、動画を見なくても「何を参考にした提案か」が伝わるようにしている。
  * 将来的に OpenAI/Claude API で自然文生成する IdeaGenerator に差し替える場合は、
  * この関数と同じシグネチャの関数を実装して buildReport() の第3引数に渡す。
  */
 export const defaultIdeaGenerator: IdeaGenerator = (videos, trend) => {
+  const ranked = [...videos].sort((a, b) => (b.trendScore ?? 0) - (a.trendScore ?? 0));
+
+  // 1. 今週の傾向: タグ集計のサマリーに加え、実際に伸びている上位動画を
+  //    タイトル・チャンネル・数値・概要付きで列挙し、動画を見なくても内容が伝わるようにする。
   const trendNotes: string[] = [];
   const topTag = trend.topTags[0]?.tag;
   if (topTag) {
-    trendNotes.push(`${topTag}系の動画が多い`);
+    trendNotes.push(
+      `今週最も多かったジャンルは「${topTag}」系(${trend.topTags[0].count}件)。上位3件のジャンル: ${trend.topTags
+        .slice(0, 3)
+        .map((t) => `${t.tag}(${t.count})`)
+        .join(" / ")}`,
+    );
+  } else {
+    trendNotes.push("特定のジャンルへの偏りは見られませんでした");
   }
-  if (trend.topTags.some((t) => t.tag === "ミニゲーム")) {
-    trendNotes.push("逃走中・鬼ごっこ系が伸びている");
-  }
-  if (trend.topTags.some((t) => t.tag === "セキュリティ" || t.tag === "建築")) {
-    trendNotes.push("秘密基地・セキュリティ系は授業化しやすい");
-  }
-  if (trend.topTags.some((t) => t.tag === "コマンド" || t.tag === "アドオン")) {
-    trendNotes.push("コマンドやアドオンに変換できるテーマが多い");
-  }
-  if (trendNotes.length === 0) {
-    trendNotes.push("特に際立った傾向は見られませんでした");
+  for (const video of ranked.slice(0, 3)) {
+    trendNotes.push(describeVideo(video));
   }
 
-  const candidateTags = [
-    ...new Set([
-      ...trend.curriculumCandidates.flatMap((v) => v.tags),
-      ...trend.videoIdeaCandidates.flatMap((v) => v.tags),
-      ...trend.topTags.map((t) => t.tag),
-    ]),
-  ].filter((tag) => IDEA_TEMPLATES[tag]);
+  // 2. 授業化候補・3. 動画案: タグごとの定型文をベースにしつつ、
+  //    実際にどの動画を参考にした提案かを明記して具体性を持たせる。
+  const curriculumIdeas = trend.curriculumCandidates.slice(0, CANDIDATE_N).map((video) => {
+    const tag = primaryTemplateTag(video);
+    const base = tag ? IDEA_TEMPLATES[tag].curriculum : "人気動画の企画を分析し、教材化できるテーマを検討する";
+    return `${base}(参考: ${describeVideo(video)})`;
+  });
 
-  const curriculumIdeas = candidateTags.map((tag) => IDEA_TEMPLATES[tag].curriculum);
-  const videoIdeas = candidateTags.map((tag) => IDEA_TEMPLATES[tag].videoIdea);
+  const videoIdeas = trend.videoIdeaCandidates.slice(0, CANDIDATE_N).map((video) => {
+    const tag = primaryTemplateTag(video);
+    const base = tag ? IDEA_TEMPLATES[tag].videoIdea : "今週人気の企画を参考にした動画を検討する";
+    return `${base}(元ネタ: ${describeVideo(video)})`;
+  });
 
   for (const fallback of FALLBACK_CURRICULUM_IDEAS) {
     if (curriculumIdeas.length >= CANDIDATE_N) break;
-    if (!curriculumIdeas.includes(fallback)) curriculumIdeas.push(fallback);
+    curriculumIdeas.push(fallback);
   }
   for (const fallback of FALLBACK_VIDEO_IDEAS) {
     if (videoIdeas.length >= CANDIDATE_N) break;
-    if (!videoIdeas.includes(fallback)) videoIdeas.push(fallback);
+    videoIdeas.push(fallback);
   }
 
   return {

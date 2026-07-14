@@ -139,13 +139,20 @@ npm start
 
 ## 6. GitHub Actionsで週1実行する方法
 
-`.github/workflows/weekly.yml` を用意しています。日本時間 毎週月曜9:00 に実行されます(GitHub ActionsのcronはUTCのため `0 0 * * 1` = UTC月曜0:00 = JST月曜9:00)。
+`.github/workflows/weekly.yml` を用意しています。日本時間 毎週金曜6:40 に実行されます(GitHub ActionsのcronはUTCのため `40 21 * * 4` = UTC木曜21:40 = JST金曜6:40)。スケジュールを変更したい場合は、この`cron`の値を書き換えてください。
 
 事前準備:
 
 1. リポジトリの Settings → Secrets and variables → Actions で以下のSecretsを登録します。
    - `YOUTUBE_API_KEY`
    - `TEAMS_WEBHOOK_URL`
+   - `SHAREPOINT_TENANT_ID`
+   - `SHAREPOINT_CLIENT_ID`
+   - `SHAREPOINT_CLIENT_SECRET`
+   - `SHAREPOINT_SITE_HOSTNAME`
+   - `SHAREPOINT_SITE_PATH`
+   - `SHAREPOINT_DASHBOARD_URL`
+   - (`SHAREPOINT_LIST_NAME`と`SHAREPOINT_SAVE_TOP_N`は`weekly.yml`内に直接値を書いているためSecrets登録不要です)
 2. 手動実行して動作確認したい場合は、Actionsタブから該当ワークフローを選び「Run workflow」(`workflow_dispatch`)を実行してください。
 
 **データ永続化に関する注意**: GitHub Actionsの実行環境は毎回使い捨てのため、`data/latest.json` をリポジトリにコミットして永続化しないと、次回実行時に「前回データ」が読み込めず、常に初回相当の仮計算になってしまいます。そのため `weekly.yml` には実行後に `data/` の変更を自動コミット&プッシュするステップを含めています。この挙動が不要、または別の永続化方法(後述のGoogle Sheets / Supabaseなど)に切り替える場合は、該当ステップを削除してください。
@@ -188,10 +195,64 @@ trendScore = weeklyViewIncrease + likeCount * 10 + commentCount * 50
 
 `weeklyViewIncrease` の大きさ・企画向けタイトルキーワード(「作ってみた」「対決」「最強」「検証」「100日」「逃走中」「秘密基地」)・授業化しやすいタグの有無から加点します(`src/analysis/scoreVideos.ts`)。
 
+## 8. SharePoint連携の設定方法(分析用ダッシュボード)
+
+週次の集計結果(上位`SHAREPOINT_SAVE_TOP_N`件)をSharePointリストに履歴として蓄積し、SharePointページ上のリスト表示/グラフで分析できるようにする任意機能です。`SHAREPOINT_ENABLED=true` を設定しない限り一切動作せず、既存の動作に影響しません。
+
+### 8-1. Azure ADアプリ登録(1回だけ)
+
+1. [Azure Portal](https://portal.azure.com/) → 「Azure Active Directory」→「アプリの登録」→「新規登録」
+2. 名前(例: `minecraft-trend-bot`)を入力して登録
+3. 「概要」から **アプリケーション(クライアント) ID** と **ディレクトリ(テナント) ID** を控える → `.env` の `SHAREPOINT_CLIENT_ID` / `SHAREPOINT_TENANT_ID`
+4. 「証明書とシークレット」→「新しいクライアント シークレット」を作成し、値を控える(作成直後しか表示されません) → `.env` の `SHAREPOINT_CLIENT_SECRET`
+5. 「APIのアクセス許可」→「アクセス許可の追加」→「Microsoft Graph」→「アプリケーションの許可」→ **`Sites.ReadWrite.All`** を追加
+6. 追加後、「〇〇に管理者の同意を与えます」ボタンをクリックして同意する(**テナント管理者権限が必要**です。自分がGlobal管理者でない場合は情シス担当に依頼してください)
+
+> `Sites.ReadWrite.All` はテナント内の全SharePointサイトへの書き込み権限を持つため、より権限を絞りたい場合は `Sites.Selected` + 対象サイトへの個別アクセス許可付与(別途Graph API呼び出しが必要)に変更してください。
+
+### 8-2. SharePointリストの作成
+
+1. 保存先にしたいSharePointサイトで、「新規」→「リスト」→「空白のリスト」を作成し、`.env` の `SHAREPOINT_LIST_NAME`(既定値 `MinecraftTrendHistory`)と同じ名前を付ける
+2. 以下の列を追加する(列名は完全一致させること。型は列の設定画面で選択):
+
+| 列名 | 型 |
+| --- | --- |
+| VideoId | 1行テキスト |
+| ChannelTitle | 1行テキスト |
+| VideoURL | 1行テキスト(またはハイパーリンク) |
+| ViewCount | 数値 |
+| LikeCount | 数値 |
+| CommentCount | 数値 |
+| WeeklyViewIncrease | 数値 |
+| TrendScore | 数値 |
+| Tags | 1行テキスト |
+| PublishedAt | 1行テキスト |
+| WeekLabel | 1行テキスト |
+| Description | 複数行テキスト |
+| CurriculumFitScore | 数値 |
+| VideoIdeaFitScore | 数値 |
+
+(既定の `Title` 列に動画タイトルが入ります。列を追加する必要はありません)
+
+3. サイトのURLから `SHAREPOINT_SITE_HOSTNAME`(例: `contoso.sharepoint.com`)と `SHAREPOINT_SITE_PATH`(例: `/sites/nikorihito`)を `.env` に設定する
+
+### 8-3. 分析用ダッシュボードページの作成
+
+1. 同じSharePointサイトで「新規」→「ページ」→「単純なページ」などを作成(例: `minecraft-dashboard`)
+2. Webパーツの「+」から「**リスト**」を追加し、対象リストとして作成した `MinecraftTrendHistory` を選択
+3. リストのビュー設定で `WeekLabel` の降順、`TrendScore` の降順で並び替え、`Tags` や `ChannelTitle` でグループ化するビューを作っておくと見やすくなる
+4. ページを公開し、URLを `.env` の `SHAREPOINT_DASHBOARD_URL` に設定する(Teamsカードに「📊 分析ダッシュボードを開く」ボタンとして表示される)
+
+グラフ表示が欲しい場合は、同ページに「Power BI」Webパーツ(要Power BI側でのレポート作成)や「グラフ」系のサードパーティWebパーツを追加してください。初期実装ではまずリスト表示(並び替え・グループ化・フィルター)のみのシンプルな構成にしています。
+
+### 8-4. 動作確認
+
+`.env` の設定後、`npm run dev` を実行し、コンソールに `[6/7] SharePointへ履歴を保存中...` と表示されてエラーが出なければ、SharePointリストに行が追加されているはずです。
+
 ## 今後の拡張予定(未実装)
 
-- TeamsへAdaptive Card形式で投稿(現在はプレーンテキスト/Markdown文字列のみ)
-- サムネイル画像付き投稿(`VideoRecord.thumbnailUrl` は既に取得済みのため、Adaptive Card化時に利用可能)
-- チャンネル別・タグ別の週次推移グラフ
+- サムネイル画像付き投稿(`VideoRecord.thumbnailUrl` は既に取得済みのため、Adaptive Cardの`Image`要素に追加するだけで対応可能)
+- チャンネル別・タグ別の週次推移グラフ(SharePointダッシュボード上にPower BI等で追加)
 - 子ども向け／保護者向け／授業向けで企画を分類
 - `buildReport.ts` の `IdeaGenerator` をOpenAI/Claude API呼び出しに差し替え、タイトル案・サムネ文言・授業タイトルまで自動生成
+- 提案(授業化候補・動画案)を、Teams上でのやり取りを通じてブラッシュアップできるようにする(Adaptive Cardのアクション+応答フロー、またはボット化が必要)

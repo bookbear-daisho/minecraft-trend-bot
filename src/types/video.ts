@@ -6,6 +6,7 @@ export type VideoRecord = {
   publishedAt: string;
   url: string;
   thumbnailUrl?: string;
+  description: string;
 
   viewCount: number;
   likeCount: number;
