@@ -139,9 +139,28 @@ npm start
 
 ## 6. GitHub Actionsで週1実行する方法
 
-`.github/workflows/weekly.yml` を用意しています。日本時間 毎週金曜6:40 に実行されます(GitHub ActionsのcronはUTCのため `40 21 * * 4` = UTC木曜21:40 = JST金曜6:40)。スケジュールを変更したい場合は、この`cron`の値を書き換えてください。
+`.github/workflows/weekly.yml` は `workflow_dispatch`(手動/API経由の実行)のみをトリガーとしており、GitHub純正の`schedule`トリガーは**意図的に設定していません**。
 
-事前準備:
+理由: GitHub Actionsの`schedule`トリガーは公式に「高負荷時には起動がスキップされることがある」ベストエフォート仕様であり、実際に検証したところ指定時刻に起動しないことが確認されたためです。代わりに、外部の無料cronサービス(cron-job.org等)から一定時刻に`workflow_dispatch` APIを呼び出す方式にしています。
+
+### 6-1. GitHubアクセストークン(PAT)の発行
+
+1. [https://github.com/settings/personal-access-tokens/new](https://github.com/settings/personal-access-tokens/new) を開く(Fine-grained tokens)
+2. 「Repository access」→「Only select repositories」→ このリポジトリを選択
+3. 「Permissions」→「Actions」を「**Read and write**」に設定
+4. 「Generate token」で発行(`github_pat_`から始まる文字列。再表示できないので控えておく)
+
+### 6-2. 外部cronサービス(cron-job.org)の設定
+
+[cron-job.org](https://cron-job.org/) で無料アカウントを作成し、以下の内容でcronジョブを作成します。
+
+- **URL**: `https://api.github.com/repos/bookbear-daisho/minecraft-trend-bot/actions/workflows/weekly.yml/dispatches`
+- **Method**: `POST`
+- **Headers**: `Authorization: Bearer <PAT>` / `Accept: application/vnd.github+json` / `Content-Type: application/json`
+- **Body**: `{"ref":"main"}`
+- **Schedule**: 本番は毎週月曜9:00(Asia/Tokyo)。動作確認用に別途ジョブを追加しても良い
+
+事前準備(Secrets登録):
 
 1. リポジトリの Settings → Secrets and variables → Actions で以下のSecretsを登録します。
    - `YOUTUBE_API_KEY`
