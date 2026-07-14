@@ -2,8 +2,9 @@ name: Weekly Minecraft Trend Report
 
 on:
   schedule:
-    # 日本時間 毎週金曜6:40 = UTC 毎週木曜21:40
-    - cron: "40 21 * * 4"
+    # [検証用一時設定] UTC 2026-07-14 07:06 (JST 16:06) に本当にcronで起動するか確認するためのテスト
+    # 本来のスケジュール(日本時間 毎週金曜6:40 = UTC 毎週木曜21:40): "40 21 * * 4"
+    - cron: "6 7 * * 2"
   workflow_dispatch:
 
 permissions:
