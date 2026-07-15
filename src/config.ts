@@ -31,6 +31,16 @@ export const SHAREPOINT_SAVE_TOP_N = Number(process.env.SHAREPOINT_SAVE_TOP_N ??
 // Teamsカードの「分析ダッシュボードを開く」ボタンのリンク先(SharePointページのURL)
 export const SHAREPOINT_DASHBOARD_URL = process.env.SHAREPOINT_DASHBOARD_URL ?? "";
 
+// Supabaseへの履歴保存(M365アカウントを持たないクライアント等向けのWeb分析用)。
+// SharePointと並行して保存する追加の保存先。未設定の場合は何もせずスキップする。
+export const SUPABASE_ENABLED = process.env.SUPABASE_ENABLED === "true";
+export const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
+// service_role キー(RLSを回避してサーバー側からinsertするため)。anon keyではない点に注意。
+export const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+export const SUPABASE_TABLE_NAME = process.env.SUPABASE_TABLE_NAME ?? "minecraft_trend_history";
+// 毎週Supabaseに保存する件数(SharePoint側と揃えている)
+export const SUPABASE_SAVE_TOP_N = Number(process.env.SUPABASE_SAVE_TOP_N ?? 30);
+
 // 検索キーワード(search.list で使用)
 export const SEARCH_QUERIES: string[] = [
   "マイクラ",

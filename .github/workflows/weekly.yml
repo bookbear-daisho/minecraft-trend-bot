@@ -35,6 +35,11 @@ jobs:
           SHAREPOINT_LIST_NAME: MinecraftTrendHistory
           SHAREPOINT_SAVE_TOP_N: 30
           SHAREPOINT_DASHBOARD_URL: ${{ secrets.SHAREPOINT_DASHBOARD_URL }}
+          SUPABASE_ENABLED: "true"
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_TABLE_NAME: minecraft_trend_history
+          SUPABASE_SAVE_TOP_N: 30
       - name: Commit updated data
         if: always()
         run: |
