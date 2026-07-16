@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>マインクラフト動画トレンド分析</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #f7f8fa;
+    --panel: #ffffff;
+    --border: #e3e6ea;
+    --text: #1f2328;
+    --text-muted: #6b7280;
+    --accent: #2f9e44;
+    --accent-soft: #e6f4ea;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181d;
+      --panel: #1f2229;
+      --border: #2c2f36;
+      --text: #e7e9ec;
+      --text-muted: #9aa0a8;
+      --accent: #4cc26b;
+      --accent-soft: #1e3324;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", "Hiragino Sans", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  .subtitle { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 20px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  .filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 0.75rem; color: var(--text-muted); }
+  select, input {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    min-width: 160px;
+  }
+  .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .charts { grid-template-columns: 1fr; } }
+  .chart-box { position: relative; height: 260px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-muted); font-weight: 600; cursor: pointer; user-select: none; white-space: nowrap; }
+  th.active { color: var(--accent); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:hover td { background: var(--accent-soft); }
+  a.title-link { color: var(--text); text-decoration: none; }
+  a.title-link:hover { color: var(--accent); text-decoration: underline; }
+  .tag { display: inline-block; background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 1px 6px; font-size: 0.7rem; margin-right: 4px; }
+  .status { color: var(--text-muted); font-size: 0.8rem; padding: 8px 0; }
+  .table-scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>マインクラフト動画トレンド分析</h1>
+  <div class="subtitle" id="subtitle">読み込み中...</div>
+
+  <div class="panel">
+    <div class="filters">
+      <div class="field">
+        <label for="weekSelect">週</label>
+        <select id="weekSelect"></select>
+      </div>
+      <div class="field">
+        <label for="tagSelect">タグ</label>
+        <select id="tagSelect"></select>
+      </div>
+      <div class="field">
+        <label for="channelSelect">チャンネル</label>
+        <select id="channelSelect"></select>
+      </div>
+      <div class="field">
+        <label for="keywordInput">キーワード検索</label>
+        <input id="keywordInput" type="text" placeholder="タイトルで検索" />
+      </div>
+    </div>
+  </div>
+
+  <div class="panel charts">
+    <div>
+      <div class="subtitle" style="margin-bottom:8px">タグ別 動画数</div>
+      <div class="chart-box"><canvas id="tagChart"></canvas></div>
+    </div>
+    <div>
+      <div class="subtitle" style="margin-bottom:8px">週次 trend_score 合計の推移</div>
+      <div class="chart-box"><canvas id="trendChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="table-scroll">
+      <table id="videoTable">
+        <thead>
+          <tr>
+            <th data-key="title">タイトル</th>
+            <th data-key="channel_title">チャンネル</th>
+            <th data-key="view_count" class="num">再生数</th>
+            <th data-key="like_count" class="num">高評価</th>
+            <th data-key="comment_count" class="num">コメント</th>
+            <th data-key="weekly_view_increase" class="num">週間再生増</th>
+            <th data-key="trend_score" class="num active">trend_score</th>
+            <th data-key="week_label">週</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = "https://xnikhciifvceawgueywa.supabase.co";
+const SUPABASE_KEY = "sb_publishable_M-O2R2wzSJ5nkx_yb9LX_w_Xe3yeswi";
+const TABLE = "minecraft_trend_history";
+
+let rows = [];
+let sortKey = "trend_score";
+let sortDir = "desc";
+let tagChart, trendChart;
+
+async function loadData() {
+  const statusEl = document.getElementById("status");
+  statusEl.textContent = "データを取得中...";
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/${TABLE}?select=*&order=week_label.desc,trend_score.desc&limit=2000`,
+    { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
+  );
+  if (!res.ok) {
+    statusEl.textContent = `データの取得に失敗しました (${res.status})`;
+    return;
+  }
+  rows = await res.json();
+  statusEl.textContent = `${rows.length}件のデータを取得しました`;
+  document.getElementById("subtitle").textContent =
+    rows.length > 0 ? `最新週: ${rows[0].week_label}` : "データがありません";
+  populateFilters();
+  render();
+}
+
+function uniqueValues(key, splitComma) {
+  const set = new Set();
+  rows.forEach((r) => {
+    if (!r[key]) return;
+    if (splitComma) {
+      r[key].split(",").map((s) => s.trim()).filter(Boolean).forEach((v) => set.add(v));
+    } else {
+      set.add(r[key]);
+    }
+  });
+  return Array.from(set).sort().reverse();
+}
+
+function populateFilters() {
+  const weekSelect = document.getElementById("weekSelect");
+  const tagSelect = document.getElementById("tagSelect");
+  const channelSelect = document.getElementById("channelSelect");
+
+  weekSelect.innerHTML = '<option value="">すべての週</option>' +
+    uniqueValues("week_label", false).map((w) => `<option value="${w}">${w}</option>`).join("");
+  tagSelect.innerHTML = '<option value="">すべてのタグ</option>' +
+    uniqueValues("tags", true).map((t) => `<option value="${t}">${t}</option>`).join("");
+  channelSelect.innerHTML = '<option value="">すべてのチャンネル</option>' +
+    uniqueValues("channel_title", false).map((c) => `<option value="${c}">${c}</option>`).join("");
+}
+
+function getFiltered() {
+  const week = document.getElementById("weekSelect").value;
+  const tag = document.getElementById("tagSelect").value;
+  const channel = document.getElementById("channelSelect").value;
+  const keyword = document.getElementById("keywordInput").value.trim().toLowerCase();
+
+  return rows.filter((r) => {
+    if (week && r.week_label !== week) return false;
+    if (tag && !(r.tags || "").split(",").map((s) => s.trim()).includes(tag)) return false;
+    if (channel && r.channel_title !== channel) return false;
+    if (keyword && !(r.title || "").toLowerCase().includes(keyword)) return false;
+    return true;
+  });
+}
+
+function render() {
+  const filtered = getFiltered();
+  renderTable(filtered);
+  renderTagChart(filtered);
+  renderTrendChart();
+}
+
+function renderTable(filtered) {
+  const sorted = [...filtered].sort((a, b) => {
+    const av = a[sortKey] ?? "";
+    const bv = b[sortKey] ?? "";
+    if (typeof av === "number" && typeof bv === "number") {
+      return sortDir === "asc" ? av - bv : bv - av;
+    }
+    return sortDir === "asc" ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+  });
+
+  const tbody = document.querySelector("#videoTable tbody");
+  tbody.innerHTML = sorted.slice(0, 200).map((r) => `
+    <tr>
+      <td><a class="title-link" href="${r.video_url}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a></td>
+      <td>${escapeHtml(r.channel_title ?? "")}</td>
+      <td class="num">${formatNum(r.view_count)}</td>
+      <td class="num">${formatNum(r.like_count)}</td>
+      <td class="num">${formatNum(r.comment_count)}</td>
+      <td class="num">${formatNum(r.weekly_view_increase)}</td>
+      <td class="num">${formatNum(r.trend_score)}</td>
+      <td>${r.week_label ?? ""}</td>
+    </tr>
+  `).join("");
+
+  document.getElementById("status").textContent =
+    `${filtered.length}件中 ${Math.min(filtered.length, 200)}件を表示`;
+}
+
+function renderTagChart(filtered) {
+  const counts = {};
+  filtered.forEach((r) => {
+    (r.tags || "").split(",").map((s) => s.trim()).filter(Boolean).forEach((tag) => {
+      counts[tag] = (counts[tag] || 0) + 1;
+    });
+  });
+  const labels = Object.keys(counts).sort((a, b) => counts[b] - counts[a]).slice(0, 12);
+  const data = labels.map((l) => counts[l]);
+
+  if (tagChart) tagChart.destroy();
+  tagChart = new Chart(document.getElementById("tagChart"), {
+    type: "bar",
+    data: { labels, datasets: [{ label: "動画数", data, backgroundColor: "#2f9e44" }] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+}
+
+function renderTrendChart() {
+  const totals = {};
+  rows.forEach((r) => {
+    const w = r.week_label;
+    if (!w) return;
+    totals[w] = (totals[w] || 0) + (r.trend_score || 0);
+  });
+  const labels = Object.keys(totals).sort();
+  const data = labels.map((l) => totals[l]);
+
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(document.getElementById("trendChart"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{ label: "trend_score合計", data, borderColor: "#2f9e44", backgroundColor: "#2f9e4433", tension: 0.25, fill: true }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true } },
+    },
+  });
+}
+
+function formatNum(n) {
+  return typeof n === "number" ? n.toLocaleString("ja-JP") : "";
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+document.getElementById("weekSelect").addEventListener("change", render);
+document.getElementById("tagSelect").addEventListener("change", render);
+document.getElementById("channelSelect").addEventListener("change", render);
+document.getElementById("keywordInput").addEventListener("input", render);
+document.querySelectorAll("#videoTable th").forEach((th) => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.key;
+    if (sortKey === key) {
+      sortDir = sortDir === "asc" ? "desc" : "asc";
+    } else {
+      sortKey = key;
+      sortDir = "desc";
+    }
+    document.querySelectorAll("#videoTable th").forEach((t) => t.classList.remove("active"));
+    th.classList.add("active");
+    render();
+  });
+});
+
+loadData();
+</script>
+</body>
+</html>
