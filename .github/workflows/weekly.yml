@@ -40,6 +40,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_TABLE_NAME: minecraft_trend_history
           SUPABASE_SAVE_TOP_N: 30
+          SUPABASE_DASHBOARD_URL: https://bookbear-daisho.github.io/minecraft-trend-bot/
       - name: Commit updated data
         if: always()
         run: |

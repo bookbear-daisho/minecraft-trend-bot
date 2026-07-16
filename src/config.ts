@@ -40,6 +40,8 @@ export const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?
 export const SUPABASE_TABLE_NAME = process.env.SUPABASE_TABLE_NAME ?? "minecraft_trend_history";
 // 毎週Supabaseに保存する件数(SharePoint側と揃えている)
 export const SUPABASE_SAVE_TOP_N = Number(process.env.SUPABASE_SAVE_TOP_N ?? 30);
+// Teamsカードの「分析ダッシュボードを開く」ボタンのリンク先(GitHub Pagesで公開したWebダッシュボードのURL)
+export const SUPABASE_DASHBOARD_URL = process.env.SUPABASE_DASHBOARD_URL ?? "";
 
 // 検索キーワード(search.list で使用)
 export const SEARCH_QUERIES: string[] = [

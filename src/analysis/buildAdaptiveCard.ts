@@ -1,4 +1,4 @@
-import { SHAREPOINT_DASHBOARD_URL } from "../config";
+import { SHAREPOINT_DASHBOARD_URL, SUPABASE_DASHBOARD_URL } from "../config";
 import { TrendSummary, VideoRecord } from "../types/video";
 import { defaultIdeaGenerator, IdeaGenerator } from "./buildReport";
 import { rankVideos } from "./rankVideos";
@@ -138,21 +138,37 @@ export function buildAdaptiveCard(
     ...buildListSection("🎥 こっぴーふーチャンネル動画案", videoIdeas),
   ];
 
-  const actions: AdaptiveCard[] = SHAREPOINT_DASHBOARD_URL
-    ? [
-        {
-          type: "ActionSet",
-          spacing: "Large",
-          actions: [
-            {
-              type: "Action.OpenUrl",
-              title: "📊 分析ダッシュボードを開く(SharePoint)",
-              url: SHAREPOINT_DASHBOARD_URL,
-            },
-          ],
-        },
-      ]
-    : [];
+  const dashboardActions: AdaptiveCard[] = [
+    ...(SHAREPOINT_DASHBOARD_URL
+      ? [
+          {
+            type: "Action.OpenUrl",
+            title: "📊 分析ダッシュボードを開く(SharePoint)",
+            url: SHAREPOINT_DASHBOARD_URL,
+          },
+        ]
+      : []),
+    ...(SUPABASE_DASHBOARD_URL
+      ? [
+          {
+            type: "Action.OpenUrl",
+            title: "📊 分析ダッシュボードを開く(Web)",
+            url: SUPABASE_DASHBOARD_URL,
+          },
+        ]
+      : []),
+  ];
+
+  const actions: AdaptiveCard[] =
+    dashboardActions.length > 0
+      ? [
+          {
+            type: "ActionSet",
+            spacing: "Large",
+            actions: dashboardActions,
+          },
+        ]
+      : [];
 
   return {
     type: "AdaptiveCard",
