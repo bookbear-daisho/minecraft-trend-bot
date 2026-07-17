@@ -69,6 +69,13 @@
   .tag { display: inline-block; background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 1px 6px; font-size: 0.7rem; margin-right: 4px; }
   .status { color: var(--text-muted); font-size: 0.8rem; padding: 8px 0; }
   .table-scroll { overflow-x: auto; }
+  .candidates { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .candidates { grid-template-columns: 1fr; } }
+  .candidate-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .candidate-item { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+  .candidate-rank { color: var(--accent); font-weight: 700; margin-right: 4px; }
+  .candidate-meta { color: var(--text-muted); font-size: 0.75rem; margin-top: 2px; }
+  .candidate-score { display: inline-block; background: var(--accent-soft); color: var(--accent); border-radius: 4px; padding: 1px 6px; font-size: 0.75rem; font-weight: 600; margin-left: 6px; }
 </style>
 </head>
 <body>
@@ -97,6 +104,17 @@
     </div>
   </div>
 
+  <div class="panel candidates">
+    <div>
+      <div class="subtitle" style="margin-bottom:8px">🧑‍🏫 今週の授業化候補 TOP5(curriculum_fit_score順)</div>
+      <ul class="candidate-list" id="curriculumList"></ul>
+    </div>
+    <div>
+      <div class="subtitle" style="margin-bottom:8px">🎥 今週の動画案候補 TOP5(video_idea_fit_score順)</div>
+      <ul class="candidate-list" id="videoIdeaList"></ul>
+    </div>
+  </div>
+
   <div class="panel charts">
     <div>
       <div class="subtitle" style="margin-bottom:8px">タグ別 動画数</div>
@@ -120,6 +138,8 @@
             <th data-key="comment_count" class="num">コメント</th>
             <th data-key="weekly_view_increase" class="num">週間再生増</th>
             <th data-key="trend_score" class="num active">trend_score</th>
+            <th data-key="curriculum_fit_score" class="num">授業化度</th>
+            <th data-key="video_idea_fit_score" class="num">動画案度</th>
             <th data-key="week_label">週</th>
           </tr>
         </thead>
@@ -205,6 +225,45 @@ function render() {
   renderTable(filtered);
   renderTagChart(filtered);
   renderTrendChart();
+  renderCandidates();
+}
+
+function latestWeekLabel() {
+  return rows.reduce((max, r) => (r.week_label && r.week_label > max ? r.week_label : max), "");
+}
+
+function renderCandidateList(elementId, items, scoreKey, scoreLabel) {
+  const list = document.getElementById(elementId);
+  if (items.length === 0) {
+    list.innerHTML = '<li class="candidate-item">対象週のデータがありません</li>';
+    return;
+  }
+  list.innerHTML = items.map((r, i) => `
+    <li class="candidate-item">
+      <span class="candidate-rank">${i + 1}.</span>
+      <a class="title-link" href="${r.video_url}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a>
+      <span class="candidate-score">${scoreLabel} ${formatNum(r[scoreKey])}</span>
+      <div class="candidate-meta">${escapeHtml(r.channel_title ?? "")} ・ ${escapeHtml(r.tags ?? "")}</div>
+    </li>
+  `).join("");
+}
+
+function renderCandidates() {
+  // タグ・チャンネル・キーワードの絞り込みには影響されず、週選択(未選択時は最新週)を基準に
+  // Teamsカードと同じロジック(curriculumFitScore>0上位5件 / videoIdeaFitScore上位5件)で候補を出す。
+  const week = document.getElementById("weekSelect").value || latestWeekLabel();
+  const weekRows = rows.filter((r) => r.week_label === week);
+
+  const curriculumCandidates = weekRows
+    .filter((r) => (r.curriculum_fit_score ?? 0) > 0)
+    .sort((a, b) => b.curriculum_fit_score - a.curriculum_fit_score)
+    .slice(0, 5);
+  renderCandidateList("curriculumList", curriculumCandidates, "curriculum_fit_score", "授業化度");
+
+  const videoIdeaCandidates = [...weekRows]
+    .sort((a, b) => b.video_idea_fit_score - a.video_idea_fit_score)
+    .slice(0, 5);
+  renderCandidateList("videoIdeaList", videoIdeaCandidates, "video_idea_fit_score", "動画案度");
 }
 
 function renderTable(filtered) {
@@ -227,6 +286,8 @@ function renderTable(filtered) {
       <td class="num">${formatNum(r.comment_count)}</td>
       <td class="num">${formatNum(r.weekly_view_increase)}</td>
       <td class="num">${formatNum(r.trend_score)}</td>
+      <td class="num">${formatNum(r.curriculum_fit_score)}</td>
+      <td class="num">${formatNum(r.video_idea_fit_score)}</td>
       <td>${r.week_label ?? ""}</td>
     </tr>
   `).join("");
