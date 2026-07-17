@@ -25,6 +25,7 @@ function toRow(video: VideoRecord, weekLabel: string): Record<string, unknown> {
     description: video.description,
     curriculum_fit_score: video.curriculumFitScore,
     video_idea_fit_score: video.videoIdeaFitScore,
+    thumbnail_url: video.thumbnailUrl ?? null,
   };
 }
 
