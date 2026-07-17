@@ -106,6 +106,14 @@
   .title-cell { display: flex; align-items: center; gap: 8px; }
   .thumb { width: 56px; height: 32px; object-fit: cover; border-radius: 4px; background: var(--bg); flex-shrink: 0; }
   .thumb-sm { width: 72px; height: 41px; object-fit: cover; border-radius: 6px; background: var(--bg); flex-shrink: 0; }
+  .thumb-link { display: block; line-height: 0; flex-shrink: 0; }
+  .delta-up { background: #e6f4ea; color: #2f9e44; }
+  .delta-down { background: #fdeaea; color: #e03131; }
+  .delta-flat { background: var(--accent-soft); color: var(--text-muted); }
+  @media (prefers-color-scheme: dark) {
+    .delta-up { background: #17301d; color: #4cc26b; }
+    .delta-down { background: #341616; color: #ff6b6b; }
+  }
   .details-panel { margin-top: 4px; }
   .details-panel > summary {
     cursor: pointer; padding: 8px 0; color: var(--text-muted); font-size: 0.82rem; font-weight: 600;
@@ -193,6 +201,18 @@
         <label for="keywordInput">キーワード検索</label>
         <input id="keywordInput" type="text" placeholder="タイトルで検索" />
       </div>
+      <div class="field">
+        <label for="minViewsInput">再生数(以上)</label>
+        <input id="minViewsInput" type="number" min="0" placeholder="例: 100000" />
+      </div>
+      <div class="field">
+        <label for="publishedFromInput">公開日(から)</label>
+        <input id="publishedFromInput" type="date" />
+      </div>
+      <div class="field">
+        <label for="publishedToInput">公開日(まで)</label>
+        <input id="publishedToInput" type="date" />
+      </div>
     </div>
   </div>
 
@@ -236,6 +256,8 @@
         </select>
       </div>
       <button class="dir-btn" id="dirBtn" type="button">降順 ▼</button>
+      <button class="dir-btn" id="exportCsvBtn" type="button">CSVエクスポート</button>
+      <button class="dir-btn" id="exportJsonBtn" type="button">JSONエクスポート</button>
       <span class="tier-legend" style="font-size:0.75rem;color:var(--text-muted)">
         <span class="tier-dot tier-1"></span>上位25%
         <span class="tier-dot tier-2"></span>50%以上
@@ -345,12 +367,18 @@ function getFiltered() {
   const tag = document.getElementById("tagSelect").value;
   const channel = document.getElementById("channelSelect").value;
   const keyword = document.getElementById("keywordInput").value.trim().toLowerCase();
+  const minViews = Number(document.getElementById("minViewsInput").value) || 0;
+  const publishedFrom = document.getElementById("publishedFromInput").value;
+  const publishedTo = document.getElementById("publishedToInput").value;
 
   return rows.filter((r) => {
     if (week && r.week_label !== week) return false;
     if (tag && !(r.tags || "").split(",").map((s) => s.trim()).includes(tag)) return false;
     if (channel && r.channel_title !== channel) return false;
     if (keyword && !(r.title || "").toLowerCase().includes(keyword)) return false;
+    if (minViews && (r.view_count || 0) < minViews) return false;
+    if (publishedFrom && r.published_at && r.published_at.slice(0, 10) < publishedFrom) return false;
+    if (publishedTo && r.published_at && r.published_at.slice(0, 10) > publishedTo) return false;
     return true;
   });
 }
@@ -398,11 +426,12 @@ function renderCards(filtered) {
     const tags = (r.tags || "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 3);
     return `
       <div class="video-card tier-${tier}">
-        ${r.thumbnail_url ? `<img class="thumb-lg" src="${r.thumbnail_url}" alt="" loading="lazy" onerror="this.remove()" />` : ""}
+        ${thumbImg(r, "thumb-lg")}
         <div class="vc-title"><a class="title-link" href="${r.video_url}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a></div>
         <div class="vc-meta"><span class="tier-dot tier-${tier}"></span>${escapeHtml(r.channel_title ?? "")}</div>
         <div class="vc-badges">
           <span class="vc-badge">再生 ${formatNum(r.view_count)}</span>
+          ${deltaBadge(r.weekly_view_increase)}
           <span class="vc-badge">trend_score ${formatNum(r.trend_score)}</span>
           ${(r.curriculum_fit_score ?? 0) > 0 ? `<span class="vc-badge">授業化度 ${formatNum(r.curriculum_fit_score)}</span>` : ""}
           ${tags.map((t) => `<span class="vc-badge">${escapeHtml(t)}</span>`).join("")}
@@ -456,9 +485,22 @@ function latestWeekLabel() {
 }
 
 function thumbImg(r, className) {
-  return r.thumbnail_url
-    ? `<img class="${className}" src="${r.thumbnail_url}" alt="" loading="lazy" onerror="this.remove()" />`
-    : "";
+  if (!r.thumbnail_url) return "";
+  return `<a class="thumb-link" href="${r.video_url}" target="_blank" rel="noopener"><img class="${className}" src="${r.thumbnail_url}" alt="" loading="lazy" onerror="this.closest('a').remove()" /></a>`;
+}
+
+function deltaBadge(value) {
+  const v = value || 0;
+  const cls = v > 0 ? "delta-up" : v < 0 ? "delta-down" : "delta-flat";
+  const arrow = v > 0 ? "▲" : v < 0 ? "▼" : "‐";
+  return `<span class="vc-badge ${cls}">${arrow} ${formatNum(Math.abs(v))}</span>`;
+}
+
+function deltaText(value) {
+  const v = value || 0;
+  const color = v > 0 ? "#2f9e44" : v < 0 ? "#e03131" : "var(--text-muted)";
+  const arrow = v > 0 ? "▲" : v < 0 ? "▼" : "‐";
+  return `<span style="color:${color}">${arrow} ${formatNum(Math.abs(v))}</span>`;
 }
 
 function renderCandidateList(elementId, items, scoreKey, scoreLabel) {
@@ -510,7 +552,7 @@ function renderTable(filtered) {
       <td class="num">${formatNum(r.view_count)}</td>
       <td class="num">${formatNum(r.like_count)}</td>
       <td class="num">${formatNum(r.comment_count)}</td>
-      <td class="num">${formatNum(r.weekly_view_increase)}</td>
+      <td class="num">${deltaText(r.weekly_view_increase)}</td>
       <td class="num">${formatNum(r.trend_score)}</td>
       <td class="num">${formatNum(r.curriculum_fit_score)}</td>
       <td class="num">${formatNum(r.video_idea_fit_score)}</td>
@@ -602,10 +644,59 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+const EXPORT_COLUMNS = [
+  "title", "channel_title", "video_url", "view_count", "like_count", "comment_count",
+  "weekly_view_increase", "trend_score", "curriculum_fit_score", "video_idea_fit_score",
+  "tags", "published_at", "week_label",
+];
+
+function csvEscape(v) {
+  const s = String(v ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportCsv() {
+  const data = sortRows(getFiltered());
+  const lines = [EXPORT_COLUMNS.join(",")].concat(
+    data.map((r) => EXPORT_COLUMNS.map((c) => csvEscape(r[c])).join(",")),
+  );
+  downloadBlob(
+    new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" }),
+    `minecraft-trend-${latestWeekLabel() || "export"}.csv`,
+  );
+}
+
+function exportJson() {
+  const data = sortRows(getFiltered()).map((r) =>
+    Object.fromEntries(EXPORT_COLUMNS.map((c) => [c, r[c] ?? null])),
+  );
+  downloadBlob(
+    new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
+    `minecraft-trend-${latestWeekLabel() || "export"}.json`,
+  );
+}
+
 document.getElementById("weekSelect").addEventListener("change", render);
 document.getElementById("tagSelect").addEventListener("change", render);
 document.getElementById("channelSelect").addEventListener("change", render);
 document.getElementById("keywordInput").addEventListener("input", render);
+document.getElementById("minViewsInput").addEventListener("input", render);
+document.getElementById("publishedFromInput").addEventListener("change", render);
+document.getElementById("publishedToInput").addEventListener("change", render);
+
+document.getElementById("exportCsvBtn").addEventListener("click", exportCsv);
+document.getElementById("exportJsonBtn").addEventListener("click", exportJson);
 
 document.getElementById("sortSelect").addEventListener("change", (e) => {
   sortKey = e.target.value;
