@@ -35,7 +35,27 @@
   }
   .wrap { max-width: 1100px; margin: 0 auto; padding: 16px 12px 64px; }
   h1 { font-size: 1.3rem; margin: 0 0 4px; }
-  .subtitle { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 16px; }
+  .header-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }
+  .subtitle { color: var(--text-muted); font-size: 0.85rem; margin: 0; }
+  .updated-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--accent-soft); color: var(--accent);
+    border-radius: 999px; padding: 3px 10px; font-size: 0.75rem; font-weight: 600;
+  }
+  .glossary { margin-bottom: 16px; }
+  .glossary summary {
+    cursor: pointer; color: var(--text-muted); font-size: 0.8rem; list-style: none;
+  }
+  .glossary summary::-webkit-details-marker { display: none; }
+  .glossary summary::before { content: "ⓘ "; }
+  .glossary[open] summary::before { content: "ⓘ "; }
+  .glossary-body {
+    margin-top: 8px; font-size: 0.8rem; color: var(--text-muted);
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
+  }
+  .glossary-body dt { font-weight: 700; color: var(--text); margin-top: 6px; }
+  .glossary-body dt:first-child { margin-top: 0; }
+  .glossary-body dd { margin: 2px 0 0; }
   .panel {
     background: var(--panel);
     border: 1px solid var(--border);
@@ -86,6 +106,35 @@
   .title-cell { display: flex; align-items: center; gap: 8px; }
   .thumb { width: 56px; height: 32px; object-fit: cover; border-radius: 4px; background: var(--bg); flex-shrink: 0; }
   .thumb-sm { width: 72px; height: 41px; object-fit: cover; border-radius: 6px; background: var(--bg); flex-shrink: 0; }
+  .details-panel { margin-top: 4px; }
+  .details-panel > summary {
+    cursor: pointer; padding: 8px 0; color: var(--text-muted); font-size: 0.82rem; font-weight: 600;
+  }
+  .sort-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .sort-controls select { width: auto; min-width: 180px; }
+  .dir-btn {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 12px; font-size: 0.8rem; cursor: pointer;
+  }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .video-card {
+    border: 1px solid var(--border); border-left-width: 4px; border-radius: 10px;
+    padding: 12px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .video-card .thumb-lg { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; background: var(--bg); }
+  .video-card .vc-title { font-weight: 600; font-size: 0.88rem; line-height: 1.35; }
+  .video-card .vc-meta { color: var(--text-muted); font-size: 0.75rem; }
+  .vc-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+  .vc-badge { font-size: 0.72rem; padding: 2px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .tier-1 { border-left-color: #e03131; }
+  .tier-2 { border-left-color: #f08c00; }
+  .tier-3 { border-left-color: #e8b400; }
+  .tier-4 { border-left-color: var(--border); }
+  .tier-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .tier-dot.tier-1 { background: #e03131; border: none; }
+  .tier-dot.tier-2 { background: #f08c00; border: none; }
+  .tier-dot.tier-3 { background: #e8b400; border: none; }
+  .tier-dot.tier-4 { background: var(--text-muted); border: none; }
   .candidates { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   @media (max-width: 720px) { .candidates { grid-template-columns: 1fr; } }
   .candidate-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -99,13 +148,30 @@
     .kpi-value { font-size: 1.1rem; }
     table { font-size: 0.78rem; }
     th, td { padding: 6px 6px; }
+    .card-grid { grid-template-columns: 1fr; }
+    .sort-controls select { min-width: 0; flex: 1 1 auto; }
   }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>マインクラフト動画トレンド分析</h1>
-  <div class="subtitle" id="subtitle">読み込み中...</div>
+  <div class="header-row">
+    <div class="subtitle" id="subtitle">読み込み中...</div>
+    <span class="updated-badge" id="updatedBadge" style="display:none">🟢 最終更新: <span id="updatedAt"></span></span>
+  </div>
+
+  <details class="glossary">
+    <summary>用語の説明</summary>
+    <dl class="glossary-body">
+      <dt>trend_score</dt>
+      <dd>週間の再生数増加分 + 高評価数×10 + コメント数×50 で算出した独自の「伸びスコア」。数値が大きいほど今週勢いがある動画です。</dd>
+      <dt>授業化度(curriculum_fit_score)</dt>
+      <dd>コマンド・建築・レッドストーンなど、ニコリヒトラボの授業テーマに使いやすいタグに応じて加点したスコア。</dd>
+      <dt>動画案度(video_idea_fit_score)</dt>
+      <dd>週間の伸び幅や「作ってみた」「対決」など企画向けタイトルの傾向から、こっぴーふーチャンネルの動画企画に使いやすいかを示すスコア。</dd>
+    </dl>
+  </details>
 
   <div class="kpi-grid" id="kpiGrid"></div>
 
@@ -157,27 +223,53 @@
   </div>
 
   <div class="panel">
-    <div class="table-scroll">
-      <table id="videoTable">
-        <thead>
-          <tr>
-            <th></th>
-            <th data-key="title">タイトル</th>
-            <th data-key="channel_title">チャンネル</th>
-            <th data-key="view_count" class="num">再生数</th>
-            <th data-key="like_count" class="num">高評価</th>
-            <th data-key="comment_count" class="num">コメント</th>
-            <th data-key="weekly_view_increase" class="num">週間再生増</th>
-            <th data-key="trend_score" class="num active">trend_score</th>
-            <th data-key="curriculum_fit_score" class="num">授業化度</th>
-            <th data-key="video_idea_fit_score" class="num">動画案度</th>
-            <th data-key="week_label">週</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      <div class="status" id="status"></div>
+    <div class="sort-controls">
+      <div class="field" style="flex: 0 1 220px;">
+        <label for="sortSelect">並び替え</label>
+        <select id="sortSelect">
+          <option value="trend_score">trend_score</option>
+          <option value="view_count">再生数</option>
+          <option value="weekly_view_increase">週間再生増</option>
+          <option value="curriculum_fit_score">授業化度</option>
+          <option value="video_idea_fit_score">動画案度</option>
+          <option value="published_at">公開日</option>
+        </select>
+      </div>
+      <button class="dir-btn" id="dirBtn" type="button">降順 ▼</button>
+      <span class="tier-legend" style="font-size:0.75rem;color:var(--text-muted)">
+        <span class="tier-dot tier-1"></span>上位25%
+        <span class="tier-dot tier-2"></span>50%以上
+        <span class="tier-dot tier-3"></span>25%以上
+        <span class="tier-dot tier-4"></span>それ以下
+        (trend_scoreの表示中データ内での相対順位)
+      </span>
     </div>
+    <div class="card-grid" id="cardGrid"></div>
+    <div class="status" id="status"></div>
+
+    <details class="details-panel">
+      <summary>📋 詳細データ(全項目)をテーブルで表示</summary>
+      <div class="table-scroll">
+        <table id="videoTable">
+          <thead>
+            <tr>
+              <th></th>
+              <th data-key="title">タイトル</th>
+              <th data-key="channel_title">チャンネル</th>
+              <th data-key="view_count" class="num">再生数</th>
+              <th data-key="like_count" class="num">高評価</th>
+              <th data-key="comment_count" class="num">コメント</th>
+              <th data-key="weekly_view_increase" class="num">週間再生増</th>
+              <th data-key="trend_score" class="num active">trend_score</th>
+              <th data-key="curriculum_fit_score" class="num">授業化度</th>
+              <th data-key="video_idea_fit_score" class="num">動画案度</th>
+              <th data-key="week_label">週</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </details>
   </div>
 </div>
 
@@ -206,8 +298,20 @@ async function loadData() {
   statusEl.textContent = `${rows.length}件のデータを取得しました`;
   document.getElementById("subtitle").textContent =
     rows.length > 0 ? `最新週: ${rows[0].week_label}` : "データがありません";
+  showUpdatedBadge();
   populateFilters();
   render();
+}
+
+function showUpdatedBadge() {
+  const latest = rows.reduce((max, r) => (r.created_at && r.created_at > max ? r.created_at : max), "");
+  if (!latest) return;
+  const text = new Date(latest).toLocaleString("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+  });
+  document.getElementById("updatedAt").textContent = `${text} JST`;
+  document.getElementById("updatedBadge").style.display = "inline-flex";
 }
 
 function uniqueValues(key, splitComma) {
@@ -254,11 +358,75 @@ function getFiltered() {
 function render() {
   const filtered = getFiltered();
   renderKPIs(filtered);
+  renderCards(filtered);
   renderTable(filtered);
   renderTagChart(filtered);
   renderChannelChart(filtered);
   renderTrendChart();
   renderCandidates();
+}
+
+// trend_scoreは動画によって桁が大きく異なる(ショート動画がバズると数百万〜数千万になる一方、
+// 通常の動画は数万程度)ため、固定のしきい値ではなく「現在表示中データ内での相対順位(四分位)」で
+// 色分けする。tierNumber(row) はrenderCards内から呼び出す。
+function buildTrendTierScale(filtered) {
+  const values = filtered.map((r) => r.trend_score || 0).sort((a, b) => a - b);
+  const percentile = (p) => values.length > 0 ? values[Math.min(values.length - 1, Math.floor(p * (values.length - 1)))] : 0;
+  const q75 = percentile(0.75);
+  const q50 = percentile(0.5);
+  const q25 = percentile(0.25);
+  return (value) => {
+    if (value >= q75) return 1;
+    if (value >= q50) return 2;
+    if (value >= q25) return 3;
+    return 4;
+  };
+}
+
+function renderCards(filtered) {
+  const sorted = sortRows(filtered);
+  const tierOf = buildTrendTierScale(filtered);
+  const grid = document.getElementById("cardGrid");
+
+  if (sorted.length === 0) {
+    grid.innerHTML = '<div class="status">該当する動画がありません</div>';
+    return;
+  }
+
+  grid.innerHTML = sorted.slice(0, 60).map((r) => {
+    const tier = tierOf(r.trend_score || 0);
+    const tags = (r.tags || "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, 3);
+    return `
+      <div class="video-card tier-${tier}">
+        ${r.thumbnail_url ? `<img class="thumb-lg" src="${r.thumbnail_url}" alt="" loading="lazy" onerror="this.remove()" />` : ""}
+        <div class="vc-title"><a class="title-link" href="${r.video_url}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a></div>
+        <div class="vc-meta"><span class="tier-dot tier-${tier}"></span>${escapeHtml(r.channel_title ?? "")}</div>
+        <div class="vc-badges">
+          <span class="vc-badge">再生 ${formatNum(r.view_count)}</span>
+          <span class="vc-badge">trend_score ${formatNum(r.trend_score)}</span>
+          ${(r.curriculum_fit_score ?? 0) > 0 ? `<span class="vc-badge">授業化度 ${formatNum(r.curriculum_fit_score)}</span>` : ""}
+          ${tags.map((t) => `<span class="vc-badge">${escapeHtml(t)}</span>`).join("")}
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function sortRows(list) {
+  return [...list].sort((a, b) => {
+    const av = a[sortKey] ?? "";
+    const bv = b[sortKey] ?? "";
+    if (typeof av === "number" && typeof bv === "number") {
+      return sortDir === "asc" ? av - bv : bv - av;
+    }
+    return sortDir === "asc" ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+  });
+}
+
+function syncSortControls() {
+  document.getElementById("sortSelect").value = sortKey;
+  document.getElementById("dirBtn").textContent = sortDir === "desc" ? "降順 ▼" : "昇順 ▲";
+  document.querySelectorAll("#videoTable th").forEach((t) => t.classList.toggle("active", t.dataset.key === sortKey));
 }
 
 function renderKPIs(filtered) {
@@ -331,14 +499,7 @@ function renderCandidates() {
 }
 
 function renderTable(filtered) {
-  const sorted = [...filtered].sort((a, b) => {
-    const av = a[sortKey] ?? "";
-    const bv = b[sortKey] ?? "";
-    if (typeof av === "number" && typeof bv === "number") {
-      return sortDir === "asc" ? av - bv : bv - av;
-    }
-    return sortDir === "asc" ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
-  });
+  const sorted = sortRows(filtered);
 
   const tbody = document.querySelector("#videoTable tbody");
   tbody.innerHTML = sorted.slice(0, 200).map((r) => `
@@ -445,7 +606,19 @@ document.getElementById("weekSelect").addEventListener("change", render);
 document.getElementById("tagSelect").addEventListener("change", render);
 document.getElementById("channelSelect").addEventListener("change", render);
 document.getElementById("keywordInput").addEventListener("input", render);
+
+document.getElementById("sortSelect").addEventListener("change", (e) => {
+  sortKey = e.target.value;
+  syncSortControls();
+  render();
+});
+document.getElementById("dirBtn").addEventListener("click", () => {
+  sortDir = sortDir === "asc" ? "desc" : "asc";
+  syncSortControls();
+  render();
+});
 document.querySelectorAll("#videoTable th").forEach((th) => {
+  if (!th.dataset.key) return;
   th.addEventListener("click", () => {
     const key = th.dataset.key;
     if (sortKey === key) {
@@ -454,8 +627,7 @@ document.querySelectorAll("#videoTable th").forEach((th) => {
       sortKey = key;
       sortDir = "desc";
     }
-    document.querySelectorAll("#videoTable th").forEach((t) => t.classList.remove("active"));
-    th.classList.add("active");
+    syncSortControls();
     render();
   });
 });
