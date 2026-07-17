@@ -123,7 +123,9 @@
   .dir-btn {
     background: var(--bg); color: var(--text); border: 1px solid var(--border);
     border-radius: 6px; padding: 6px 12px; font-size: 0.8rem; cursor: pointer;
+    white-space: nowrap; flex-shrink: 0;
   }
+  .btn-group { display: flex; flex-wrap: nowrap; gap: 8px; overflow-x: auto; max-width: 100%; }
   .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
   .video-card {
     border: 1px solid var(--border); border-left-width: 4px; border-radius: 10px;
@@ -255,9 +257,11 @@
           <option value="published_at">公開日</option>
         </select>
       </div>
-      <button class="dir-btn" id="dirBtn" type="button">降順 ▼</button>
-      <button class="dir-btn" id="exportCsvBtn" type="button">CSVエクスポート</button>
-      <button class="dir-btn" id="exportJsonBtn" type="button">JSONエクスポート</button>
+      <div class="btn-group">
+        <button class="dir-btn" id="dirBtn" type="button">降順 ▼</button>
+        <button class="dir-btn" id="exportCsvBtn" type="button">CSVエクスポート</button>
+        <button class="dir-btn" id="exportJsonBtn" type="button">JSONエクスポート</button>
+      </div>
       <span class="tier-legend" style="font-size:0.75rem;color:var(--text-muted)">
         <span class="tier-dot tier-1"></span>上位25%
         <span class="tier-dot tier-2"></span>50%以上
