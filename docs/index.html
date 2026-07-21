@@ -161,6 +161,29 @@
     .card-grid { grid-template-columns: 1fr; }
     .sort-controls select { min-width: 0; flex: 1 1 auto; }
   }
+  .hero-recommend { border-color: var(--accent); }
+  .rec-card { display: flex; gap: 16px; }
+  @media (max-width: 560px) { .rec-card { flex-direction: column; } }
+  .rec-thumb-img, .rec-thumb-placeholder {
+    width: 220px; max-width: 100%; aspect-ratio: 16 / 9; object-fit: cover;
+    border-radius: 8px; background: var(--bg); flex-shrink: 0;
+  }
+  .rec-body { flex: 1 1 auto; min-width: 0; }
+  .rec-stars { color: var(--accent); font-size: 1.1rem; letter-spacing: 2px; }
+  .rec-title { display: block; font-size: 1.05rem; font-weight: 700; margin-top: 4px; }
+  .rec-meta { color: var(--text-muted); font-size: 0.8rem; margin-top: 2px; }
+  .rec-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+  @media (max-width: 560px) { .rec-metrics { grid-template-columns: repeat(2, 1fr); } }
+  .rec-metric { background: var(--bg); border-radius: 6px; padding: 6px 8px; font-size: 0.7rem; color: var(--text-muted); }
+  .rec-metric b { display: block; color: var(--text); font-size: 0.86rem; margin-top: 2px; }
+  .rising-chiprow { display: flex; flex-wrap: wrap; gap: 8px; }
+  .rising-chip {
+    border: 1px solid var(--border); background: var(--bg); color: var(--text);
+    border-radius: 999px; padding: 6px 12px; font-size: 0.8rem; cursor: pointer;
+    display: inline-flex; gap: 6px; align-items: center;
+  }
+  .rising-chip:hover { border-color: var(--accent); }
+  .rising-chip span { color: var(--accent); font-weight: 700; font-size: 0.74rem; }
 </style>
 </head>
 <body>
@@ -182,6 +205,28 @@
       <dd>週間の伸び幅や「作ってみた」「対決」など企画向けタイトルの傾向から、こっぴーふーチャンネルの動画企画に使いやすいかを示すスコア。</dd>
     </dl>
   </details>
+
+  <div class="panel hero-recommend">
+    <div class="subtitle" style="margin-bottom:10px">🏆 今日のおすすめ(授業化度+動画案度が最も高い動画)</div>
+    <div class="rec-card" id="recommendCard"></div>
+  </div>
+
+  <div class="panel">
+    <div class="subtitle" style="margin-bottom:6px">🔥 急上昇テーマ</div>
+    <div class="subtitle" id="risingNote" style="font-size:0.72rem;margin-bottom:10px"></div>
+    <div class="rising-chiprow" id="risingChips"></div>
+  </div>
+
+  <div class="panel candidates">
+    <div>
+      <div class="subtitle" style="margin-bottom:8px">🧑‍🏫 今週の授業化候補 TOP5(curriculum_fit_score順)</div>
+      <ul class="candidate-list" id="curriculumList"></ul>
+    </div>
+    <div>
+      <div class="subtitle" style="margin-bottom:8px">🎥 今週の動画案候補 TOP5(video_idea_fit_score順)</div>
+      <ul class="candidate-list" id="videoIdeaList"></ul>
+    </div>
+  </div>
 
   <div class="kpi-grid" id="kpiGrid"></div>
 
@@ -215,17 +260,6 @@
         <label for="publishedToInput">公開日(まで)</label>
         <input id="publishedToInput" type="date" />
       </div>
-    </div>
-  </div>
-
-  <div class="panel candidates">
-    <div>
-      <div class="subtitle" style="margin-bottom:8px">🧑‍🏫 今週の授業化候補 TOP5(curriculum_fit_score順)</div>
-      <ul class="candidate-list" id="curriculumList"></ul>
-    </div>
-    <div>
-      <div class="subtitle" style="margin-bottom:8px">🎥 今週の動画案候補 TOP5(video_idea_fit_score順)</div>
-      <ul class="candidate-list" id="videoIdeaList"></ul>
     </div>
   </div>
 
@@ -326,6 +360,8 @@ async function loadData() {
     rows.length > 0 ? `最新週: ${rows[0].week_label}` : "データがありません";
   showUpdatedBadge();
   populateFilters();
+  renderRecommendation();
+  renderRisingThemes();
   render();
 }
 
@@ -524,6 +560,107 @@ function renderCandidateList(elementId, items, scoreKey, scoreLabel) {
       </div>
     </li>
   `).join("");
+}
+
+function starString(score, maxScore) {
+  const filled = Math.max(0, Math.min(5, Math.round((score / maxScore) * 5)));
+  return "★".repeat(filled) + "☆".repeat(5 - filled);
+}
+
+// 「今日のおすすめ」は、まだAIによる予測モデルが無いため、既存の授業化度・動画案度の
+// 合計が最も高い動画(=レッスン化にもこっぴー企画にも使いやすい動画)を規則ベースで選ぶ。
+// 予想再生数のような未実装の予測値は表示せず、実際に取得できている指標のみを示す。
+function renderRecommendation() {
+  const week = latestWeekLabel();
+  const weekRows = rows.filter((r) => r.week_label === week);
+  const card = document.getElementById("recommendCard");
+  if (weekRows.length === 0) {
+    card.innerHTML = '<div class="status">データがありません</div>';
+    return;
+  }
+
+  const best = [...weekRows].sort((a, b) => {
+    const scoreA = (a.curriculum_fit_score || 0) + (a.video_idea_fit_score || 0);
+    const scoreB = (b.curriculum_fit_score || 0) + (b.video_idea_fit_score || 0);
+    if (scoreB !== scoreA) return scoreB - scoreA;
+    return (b.trend_score || 0) - (a.trend_score || 0);
+  })[0];
+
+  const primaryTag = (best.tags || "").split(",").map((s) => s.trim()).filter(Boolean)[0];
+  const rivalCount = primaryTag
+    ? weekRows.filter((r) => r.video_id !== best.video_id && (r.tags || "").includes(primaryTag)).length
+    : 0;
+  const combined = (best.curriculum_fit_score || 0) + (best.video_idea_fit_score || 0);
+
+  card.innerHTML = `
+    ${thumbImg(best, "rec-thumb-img") || '<div class="rec-thumb-placeholder"></div>'}
+    <div class="rec-body">
+      <div class="rec-stars">${starString(combined, 100)}</div>
+      <a class="rec-title title-link" href="${best.video_url}" target="_blank" rel="noopener">${escapeHtml(best.title)}</a>
+      <div class="rec-meta">${escapeHtml(best.channel_title ?? "")}${primaryTag ? " ・ " + escapeHtml(primaryTag) + "系" : ""}</div>
+      <div class="rec-metrics">
+        <div class="rec-metric">週間再生増加<b>${deltaText(best.weekly_view_increase)}</b></div>
+        <div class="rec-metric">同テーマの他動画<b>${rivalCount}件</b></div>
+        <div class="rec-metric">授業化度<b>${starString(best.curriculum_fit_score || 0, 60)}</b></div>
+        <div class="rec-metric">動画案度<b>${starString(best.video_idea_fit_score || 0, 60)}</b></div>
+      </div>
+    </div>
+  `;
+}
+
+function computeTagTrendTotals(weekRows) {
+  const totals = {};
+  weekRows.forEach((r) => {
+    (r.tags || "").split(",").map((s) => s.trim()).filter(Boolean).forEach((tag) => {
+      totals[tag] = (totals[tag] || 0) + (r.trend_score || 0);
+    });
+  });
+  return totals;
+}
+
+// 急上昇テーマ = 直近週と前週でタグ別trend_score合計を比較した伸び率。
+// データが1週分しかない場合は「伸び率」を計算できないため、その週の上位タグにフォールバックする。
+function renderRisingThemes() {
+  const weeks = Array.from(new Set(rows.map((r) => r.week_label).filter(Boolean))).sort().reverse();
+  const latestWeek = weeks[0];
+  const prevWeek = weeks[1];
+  const latestRows = rows.filter((r) => r.week_label === latestWeek);
+  const latestTotals = computeTagTrendTotals(latestRows);
+
+  let items;
+  let note;
+  if (prevWeek) {
+    const prevRows = rows.filter((r) => r.week_label === prevWeek);
+    const prevTotals = computeTagTrendTotals(prevRows);
+    items = Object.keys(latestTotals).map((tag) => {
+      const cur = latestTotals[tag];
+      const prev = prevTotals[tag] || 0;
+      const growth = prev > 0 ? ((cur - prev) / prev) * 100 : null;
+      return { tag, growth };
+    }).sort((a, b) => (b.growth === null ? Infinity : b.growth) - (a.growth === null ? Infinity : a.growth))
+      .slice(0, 6);
+    note = `${prevWeek} → ${latestWeek} のtrend_score合計 伸び率`;
+  } else {
+    items = Object.keys(latestTotals)
+      .map((tag) => ({ tag, growth: null }))
+      .sort((a, b) => latestTotals[b.tag] - latestTotals[a.tag])
+      .slice(0, 6);
+    note = "先週データがまだ無いため、今週のtrend_score合計 上位タグを表示しています";
+  }
+
+  document.getElementById("risingNote").textContent = note;
+  document.getElementById("risingChips").innerHTML = items.map((it) => {
+    const growthText = it.growth === null ? "NEW" : `${it.growth >= 0 ? "+" : ""}${Math.round(it.growth)}%`;
+    return `<button type="button" class="rising-chip" data-tag="${escapeHtml(it.tag)}">${escapeHtml(it.tag)}<span>${growthText}</span></button>`;
+  }).join("");
+
+  document.querySelectorAll(".rising-chip").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.getElementById("tagSelect").value = btn.dataset.tag;
+      render();
+      document.getElementById("cardGrid").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  });
 }
 
 function renderCandidates() {
