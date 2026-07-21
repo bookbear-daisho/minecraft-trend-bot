@@ -184,6 +184,48 @@
   }
   .rising-chip:hover { border-color: var(--accent); }
   .rising-chip span { color: var(--accent); font-weight: 700; font-size: 0.74rem; }
+  .rising-chip.is-new { border-color: var(--accent); background: var(--accent-soft); }
+  .rising-subhead { font-size: 0.72rem; color: var(--text-muted); font-weight: 700; margin: 12px 0 6px; }
+  .rising-subhead:first-child { margin-top: 0; }
+
+  .summary-panel { border-color: var(--accent); }
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 720px) { .summary-grid { grid-template-columns: 1fr; } }
+  .summary-col-title { font-weight: 700; font-size: 0.9rem; margin-bottom: 10px; }
+  .summary-row { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-stars { color: var(--accent); letter-spacing: 1px; flex-shrink: 0; }
+  .summary-tag { font-weight: 700; }
+  .reason-list { margin: 10px 0 0; padding-left: 18px; color: var(--text-muted); font-size: 0.78rem; }
+  .reason-list li { margin-bottom: 3px; }
+
+  .fit-badge { font-size: 0.68rem; padding: 2px 7px; border-radius: 999px; font-weight: 700; }
+  .fit-badge.lesson { background: #dff3e3; color: #1f8a3d; }
+  .fit-badge.video { background: #dcecfc; color: #1863c9; }
+  .fit-badge.both { background: #fbe6cf; color: #b5650a; }
+  @media (prefers-color-scheme: dark) {
+    .fit-badge.lesson { background: #163a22; color: #5fd889; }
+    .fit-badge.video { background: #16283f; color: #6fa8ea; }
+    .fit-badge.both { background: #3f2a12; color: #f0a94e; }
+  }
+
+  .format-toggle { margin-top: 8px; }
+  .format-toggle summary { cursor: pointer; color: var(--accent); font-size: 0.75rem; font-weight: 600; list-style: none; }
+  .format-toggle summary::-webkit-details-marker { display: none; }
+  .format-toggle summary::before { content: "▸ "; }
+  .format-toggle[open] summary::before { content: "▾ "; }
+  .format-body {
+    margin-top: 8px; padding: 10px 12px; border-radius: 8px;
+    background: var(--bg); border: 1px solid var(--border); font-size: 0.78rem; color: var(--text-muted);
+  }
+  .format-body .fb-row { display: flex; gap: 6px; margin-bottom: 4px; }
+  .format-body .fb-row b { color: var(--text); flex-shrink: 0; }
+
+  .cta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 720px) { .cta-grid { grid-template-columns: 1fr; } }
+  .cta-list { list-style: none; margin: 8px 0 0; padding: 0; }
+  .cta-list li { padding: 5px 0; font-size: 0.88rem; }
+  .cta-list li::before { content: "✅ "; }
 </style>
 </head>
 <body>
@@ -206,6 +248,11 @@
     </dl>
   </details>
 
+  <div class="panel summary-panel">
+    <div class="subtitle" style="margin-bottom:12px">📋 今週の企画会議サマリー(30秒で結論)</div>
+    <div class="summary-grid" id="summaryGrid"></div>
+  </div>
+
   <div class="panel hero-recommend">
     <div class="subtitle" style="margin-bottom:10px">🏆 今日のおすすめ(授業化度+動画案度が最も高い動画)</div>
     <div class="rec-card" id="recommendCard"></div>
@@ -214,7 +261,7 @@
   <div class="panel">
     <div class="subtitle" style="margin-bottom:6px">🔥 急上昇テーマ</div>
     <div class="subtitle" id="risingNote" style="font-size:0.72rem;margin-bottom:10px"></div>
-    <div class="rising-chiprow" id="risingChips"></div>
+    <div id="risingChips"></div>
   </div>
 
   <div class="panel candidates">
@@ -331,6 +378,11 @@
       </div>
     </details>
   </div>
+
+  <div class="panel">
+    <div class="subtitle" style="margin-bottom:4px">✅ この分析からのおすすめアクション</div>
+    <div class="cta-grid" id="ctaGrid"></div>
+  </div>
 </div>
 
 <script>
@@ -342,6 +394,56 @@ let rows = [];
 let sortKey = "trend_score";
 let sortDir = "desc";
 let tagChart, trendChart, channelChart;
+
+// タグ→レッスン企画・動画企画のテンプレート(バッチ側 buildReport.ts の
+// IDEA_TEMPLATES と同じ「ルールベース(AIなし)」の考え方をWeb側にも展開したもの。
+// 実際の動画データと組み合わせて「そのまま使える形」まで提示する。
+const TAG_CONTENT = {
+  "建築": {
+    lesson: { grade: "小学3〜6年", learn: ["設計・空間認識", "色や素材の組み合わせ", "完成までの計画力"], duration: "60分", goal: "テーマ建築(基地・街など)を仕上げる" },
+    video: { titles: ["初心者でも作れる神建築5選", "人気建築を真似して作ってみた"], thumbnail: "「これが小学生の作品!?」", structure: ["①今週人気の建築を紹介", "②実際に真似して作る", "③でき映えを検証", "④まとめ"], audience: "小学生〜建築好き層" },
+  },
+  "サバイバル": {
+    lesson: { grade: "小学4〜6年", learn: ["計画的な資源管理", "リスク管理", "粘り強さ"], duration: "60分", goal: "◯日間生き延びるミニサバイバルを達成する" },
+    video: { titles: ["小学生だけで◯日間サバイバル生活してみた", "縛りありサバイバルに挑戦"], thumbnail: "「まさかの結末に…」", structure: ["①ルール説明", "②サバイバル生活", "③ハプニング", "④結果発表"], audience: "サバイバル系ファン" },
+  },
+  "コマンド": {
+    lesson: { grade: "小学5年〜中学生", learn: ["論理的思考", "順序立てた指示の組み立て"], duration: "45分", goal: "コマンドで簡単な仕掛けを一瞬で作る" },
+    video: { titles: ["コマンドだけで一瞬で作ってみた", "神コマンド集"], thumbnail: "「たった1行でこうなる」", structure: ["①コマンド紹介", "②実演", "③応用アイデア", "④まとめ"], audience: "コマンドに興味がある層" },
+  },
+  "アドオン": {
+    lesson: { grade: "小学5年〜中学生", learn: ["プログラミング的思考", "アイデアを形にする力"], duration: "90分", goal: "オリジナルアドオンを1つ完成させる" },
+    video: { titles: ["小学生が考えたオリジナルアドオンを形にしてみた"], thumbnail: "「自分だけのMOD誕生」", structure: ["①企画", "②制作", "③テストプレイ", "④紹介"], audience: "MOD/アドオンファン" },
+  },
+  "レッドストーン": {
+    lesson: { grade: "小学5年〜中学生", learn: ["回路・論理設計", "試行錯誤する力"], duration: "60分", goal: "自動ドアや簡単なトラップを完成させる" },
+    video: { titles: ["レッドストーンだけで作る仕掛け屋敷"], thumbnail: "「回路だけでこんなことが」", structure: ["①仕組み解説", "②制作", "③動作チェック", "④まとめ"], audience: "工作・仕組み好き層" },
+  },
+  "脱出・謎解き": {
+    lesson: { grade: "小学3〜6年", learn: ["論理的思考", "チームでの協力"], duration: "60分", goal: "脱出・謎解きマップを完成させ、実際にプレイする" },
+    video: { titles: ["本気で作った脱出ゲームに挑戦してみた"], thumbnail: "「まさかのトリックに騙された」", structure: ["①マップ紹介", "②挑戦", "③ネタバレ解説", "④まとめ"], audience: "謎解き好き層" },
+  },
+  "ミニゲーム": {
+    lesson: { grade: "小学3〜6年", learn: ["ルール設計", "フェアプレイの意識"], duration: "45分", goal: "オリジナルの逃走中・ミニゲームを自作する" },
+    video: { titles: ["マイクラ逃走中をやってみた"], thumbnail: "「まさかの結末」", structure: ["①ルール説明", "②対戦", "③名場面", "④結果"], audience: "ミニゲーム系ファン" },
+  },
+  "セキュリティ": {
+    lesson: { grade: "小学4〜6年", learn: ["防御・対策を考える力", "レッドストーン応用"], duration: "60分", goal: "セキュリティハウスを完成させ、村を守る" },
+    video: { titles: ["最強セキュリティハウスを作ってみた"], thumbnail: "「これは開けられない」", structure: ["①設計", "②制作", "③突破テスト", "④まとめ"], audience: "工作・防犯ネタ好き層" },
+  },
+  "AI活用候補": {
+    lesson: { grade: "小学5年〜中学生", learn: ["AIとの協働", "指示(プロンプト)の工夫"], duration: "60分", goal: "AIに設計させた案をマイクラで再現する" },
+    video: { titles: ["AIに秘密基地を設計させたら小学生でも作れるのか?"], thumbnail: "「AI vs 小学生」", structure: ["①AIに依頼", "②再現に挑戦", "③検証", "④まとめ"], audience: "AI・最新技術に関心がある層" },
+  },
+  "ホラー": {
+    lesson: null,
+    video: { titles: ["ホラーMODを検証してみた"], thumbnail: "「本当に怖すぎた」", structure: ["①MOD紹介", "②体験", "③リアクション", "④まとめ"], audience: "ホラー系ファン" },
+  },
+};
+const DEFAULT_VIDEO_CONTENT = {
+  titles: ["今週話題の企画を再現してみた"], thumbnail: "「今週一番伸びていた動画がこちら」",
+  structure: ["①紹介", "②やってみる", "③検証", "④まとめ"], audience: "幅広い層",
+};
 
 async function loadData() {
   const statusEl = document.getElementById("status");
@@ -360,6 +462,7 @@ async function loadData() {
     rows.length > 0 ? `最新週: ${rows[0].week_label}` : "データがありません";
   showUpdatedBadge();
   populateFilters();
+  renderMeetingSummary();
   renderRecommendation();
   renderRisingThemes();
   render();
@@ -468,7 +571,7 @@ function renderCards(filtered) {
       <div class="video-card tier-${tier}">
         ${thumbImg(r, "thumb-lg")}
         <div class="vc-title"><a class="title-link" href="${r.video_url}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a></div>
-        <div class="vc-meta"><span class="tier-dot tier-${tier}"></span>${escapeHtml(r.channel_title ?? "")}</div>
+        <div class="vc-meta"><span class="tier-dot tier-${tier}"></span>${escapeHtml(r.channel_title ?? "")} ${fitBadge(r)}</div>
         <div class="vc-badges">
           <span class="vc-badge">再生 ${formatNum(r.view_count)}</span>
           ${deltaBadge(r.weekly_view_increase)}
@@ -543,23 +646,30 @@ function deltaText(value) {
   return `<span style="color:${color}">${arrow} ${formatNum(Math.abs(v))}</span>`;
 }
 
-function renderCandidateList(elementId, items, scoreKey, scoreLabel) {
+function renderCandidateList(elementId, items, scoreKey, scoreLabel, weekRows, growthMap) {
   const list = document.getElementById(elementId);
   if (items.length === 0) {
     list.innerHTML = '<li class="candidate-item">対象週のデータがありません</li>';
     return;
   }
-  list.innerHTML = items.map((r, i) => `
+  list.innerHTML = items.map((r, i) => {
+    const tag = primaryTagOf(r);
+    const reasons = buildAdoptionReasons(tag, weekRows, growthMap);
+    return `
     <li class="candidate-item">
       ${thumbImg(r, "thumb-sm")}
       <div class="candidate-body">
         <span class="candidate-rank">${i + 1}.</span>
         <a class="title-link" href="${r.video_url}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a>
+        ${fitBadge(r)}
         <span class="candidate-score">${scoreLabel} ${formatNum(r[scoreKey])}</span>
         <div class="candidate-meta">${escapeHtml(r.channel_title ?? "")} ・ ${escapeHtml(r.tags ?? "")}</div>
+        ${reasons.length > 0 ? `<ul class="reason-list">${reasons.map((rs) => `<li>${escapeHtml(rs)}</li>`).join("")}</ul>` : ""}
+        ${renderFormatBlock(r)}
       </div>
     </li>
-  `).join("");
+  `;
+  }).join("");
 }
 
 function starString(score, maxScore) {
@@ -597,7 +707,8 @@ function renderRecommendation() {
     <div class="rec-body">
       <div class="rec-stars">${starString(combined, 100)}</div>
       <a class="rec-title title-link" href="${best.video_url}" target="_blank" rel="noopener">${escapeHtml(best.title)}</a>
-      <div class="rec-meta">${escapeHtml(best.channel_title ?? "")}${primaryTag ? " ・ " + escapeHtml(primaryTag) + "系" : ""}</div>
+      <div class="rec-meta">${escapeHtml(best.channel_title ?? "")}${primaryTag ? " ・ " + escapeHtml(primaryTag) + "系" : ""} ${fitBadge(best)}</div>
+      ${renderFormatBlock(best)}
       <div class="rec-metrics">
         <div class="rec-metric">週間再生増加<b>${deltaText(best.weekly_view_increase)}</b></div>
         <div class="rec-metric">同テーマの他動画<b>${rivalCount}件</b></div>
@@ -618,42 +729,35 @@ function computeTagTrendTotals(weekRows) {
   return totals;
 }
 
-// 急上昇テーマ = 直近週と前週でタグ別trend_score合計を比較した伸び率。
-// データが1週分しかない場合は「伸び率」を計算できないため、その週の上位タグにフォールバックする。
-function renderRisingThemes() {
-  const weeks = Array.from(new Set(rows.map((r) => r.week_label).filter(Boolean))).sort().reverse();
-  const latestWeek = weeks[0];
-  const prevWeek = weeks[1];
-  const latestRows = rows.filter((r) => r.week_label === latestWeek);
-  const latestTotals = computeTagTrendTotals(latestRows);
+function weekList() {
+  return Array.from(new Set(rows.map((r) => r.week_label).filter(Boolean))).sort().reverse();
+}
 
-  let items;
-  let note;
-  if (prevWeek) {
-    const prevRows = rows.filter((r) => r.week_label === prevWeek);
-    const prevTotals = computeTagTrendTotals(prevRows);
-    items = Object.keys(latestTotals).map((tag) => {
-      const cur = latestTotals[tag];
+// タグ別trend_score合計の、先週比の伸び率マップを返す。
+// 値は 数値(%) / "NEW"(先週は0件だった) / null(先週データ自体が無く比較不能)。
+function computeTagGrowthMap() {
+  const weeks = weekList();
+  const latestTotals = computeTagTrendTotals(rows.filter((r) => r.week_label === weeks[0]));
+  const map = {};
+  if (weeks[1]) {
+    const prevTotals = computeTagTrendTotals(rows.filter((r) => r.week_label === weeks[1]));
+    Object.keys(latestTotals).forEach((tag) => {
       const prev = prevTotals[tag] || 0;
-      const growth = prev > 0 ? ((cur - prev) / prev) * 100 : null;
-      return { tag, growth };
-    }).sort((a, b) => (b.growth === null ? Infinity : b.growth) - (a.growth === null ? Infinity : a.growth))
-      .slice(0, 6);
-    note = `${prevWeek} → ${latestWeek} のtrend_score合計 伸び率`;
+      map[tag] = prev > 0 ? ((latestTotals[tag] - prev) / prev) * 100 : "NEW";
+    });
   } else {
-    items = Object.keys(latestTotals)
-      .map((tag) => ({ tag, growth: null }))
-      .sort((a, b) => latestTotals[b.tag] - latestTotals[a.tag])
-      .slice(0, 6);
-    note = "先週データがまだ無いため、今週のtrend_score合計 上位タグを表示しています";
+    Object.keys(latestTotals).forEach((tag) => { map[tag] = null; });
   }
+  return map;
+}
 
-  document.getElementById("risingNote").textContent = note;
-  document.getElementById("risingChips").innerHTML = items.map((it) => {
-    const growthText = it.growth === null ? "NEW" : `${it.growth >= 0 ? "+" : ""}${Math.round(it.growth)}%`;
-    return `<button type="button" class="rising-chip" data-tag="${escapeHtml(it.tag)}">${escapeHtml(it.tag)}<span>${growthText}</span></button>`;
-  }).join("");
+function risingChipHtml(tag, growth) {
+  const isNew = growth === "NEW";
+  const label = isNew ? "NEW" : typeof growth === "number" ? `${growth >= 0 ? "+" : ""}${Math.round(growth)}%` : "";
+  return `<button type="button" class="rising-chip${isNew ? " is-new" : ""}" data-tag="${escapeHtml(tag)}">${escapeHtml(tag)}${label ? `<span>${label}</span>` : ""}</button>`;
+}
 
+function bindRisingChipClicks() {
   document.querySelectorAll(".rising-chip").forEach((btn) => {
     btn.addEventListener("click", () => {
       document.getElementById("tagSelect").value = btn.dataset.tag;
@@ -663,22 +767,183 @@ function renderRisingThemes() {
   });
 }
 
+// 急上昇テーマ = 直近週と前週でタグ別trend_score合計を比較した伸び率。
+// 「急上昇」(既存タグの伸び率)と「新規トレンド」(先週0件だったタグ)を分けて見せる。
+// データが1週分しかない場合は伸び率を計算できないため、上位タグの一覧にフォールバックする。
+function renderRisingThemes() {
+  const weeks = weekList();
+  const growthMap = computeTagGrowthMap();
+  const tags = Object.keys(growthMap);
+  const noteEl = document.getElementById("risingNote");
+  const bodyEl = document.getElementById("risingChips");
+
+  if (!weeks[1]) {
+    noteEl.textContent = "先週データがまだ無いため、今週のtrend_score合計 上位タグを表示しています";
+    const latestTotals = computeTagTrendTotals(rows.filter((r) => r.week_label === weeks[0]));
+    const top = [...tags].sort((a, b) => latestTotals[b] - latestTotals[a]).slice(0, 6);
+    bodyEl.innerHTML = `<div class="rising-chiprow">${top.map((t) => risingChipHtml(t, null)).join("")}</div>`;
+    bindRisingChipClicks();
+    return;
+  }
+
+  noteEl.textContent = `${weeks[1]} → ${weeks[0]} のtrend_score合計 変化`;
+  const rising = tags.filter((t) => typeof growthMap[t] === "number").sort((a, b) => growthMap[b] - growthMap[a]).slice(0, 5);
+  const fresh = tags.filter((t) => growthMap[t] === "NEW").slice(0, 5);
+
+  let html = "";
+  if (rising.length > 0) {
+    html += `<div class="rising-subhead">急上昇</div><div class="rising-chiprow">${rising.map((t) => risingChipHtml(t, growthMap[t])).join("")}</div>`;
+  }
+  if (fresh.length > 0) {
+    html += `<div class="rising-subhead">新規トレンド</div><div class="rising-chiprow">${fresh.map((t) => risingChipHtml(t, "NEW")).join("")}</div>`;
+  }
+  bodyEl.innerHTML = html || '<div class="status">際立った変化はありませんでした</div>';
+  bindRisingChipClicks();
+}
+
+function primaryTagOf(row) {
+  return (row.tags || "").split(",").map((s) => s.trim()).filter(Boolean)[0];
+}
+
+function fitBadge(row) {
+  const c = row.curriculum_fit_score || 0;
+  const v = row.video_idea_fit_score || 0;
+  if (c > 0 && v > 0) return '<span class="fit-badge both">🟠 両方おすすめ</span>';
+  if (c > 0) return '<span class="fit-badge lesson">🟢 授業向け</span>';
+  if (v > 0) return '<span class="fit-badge video">🔵 動画向け</span>';
+  return "";
+}
+
+// 候補動画のタグから、テンプレート化されたレッスン企画・動画企画フォーマットを組み立てる。
+// buildReport.ts(Teamsレポート)のIDEA_TEMPLATESと同じ「ルールベース」方式で、
+// AI生成ではなくタグに紐づく定型フォーマットを表示する。
+function renderFormatBlock(row) {
+  const tag = primaryTagOf(row);
+  const content = TAG_CONTENT[tag];
+  const lesson = content && content.lesson;
+  const video = (content && content.video) || DEFAULT_VIDEO_CONTENT;
+
+  const lessonRows = lesson ? `
+    <div class="fb-row"><b>対象</b>${escapeHtml(lesson.grade)}</div>
+    <div class="fb-row"><b>学べること</b>${escapeHtml(lesson.learn.join(" / "))}</div>
+    <div class="fb-row"><b>レッスン時間</b>${escapeHtml(lesson.duration)}</div>
+    <div class="fb-row"><b>完成目標</b>${escapeHtml(lesson.goal)}</div>
+  ` : "";
+
+  return `
+    <details class="format-toggle">
+      <summary>企画フォーマットを見る${lesson ? "(レッスン企画+動画企画)" : "(動画企画)"}</summary>
+      <div class="format-body">
+        ${lessonRows}
+        <div class="fb-row"><b>タイトル候補</b>${escapeHtml(video.titles.join(" / "))}</div>
+        <div class="fb-row"><b>サムネ案</b>${escapeHtml(video.thumbnail)}</div>
+        <div class="fb-row"><b>構成</b>${escapeHtml(video.structure.join(" "))}</div>
+        <div class="fb-row"><b>予想再生層</b>${escapeHtml(video.audience)}</div>
+      </div>
+    </details>
+  `;
+}
+
+// 「なぜこの企画なのか」をデータから機械的に組み立てる(AI文章生成ではなく、
+// 伸び率・投稿数・平均再生数という実データの比較のみで構成する)。
+function buildAdoptionReasons(tag, weekRows, growthMap) {
+  if (!tag) return [];
+  const tagRows = weekRows.filter((r) => (r.tags || "").split(",").map((s) => s.trim()).includes(tag));
+  const reasons = [];
+  const growth = growthMap[tag];
+  if (growth === "NEW") reasons.push("先週は無かった新しいテーマ");
+  else if (typeof growth === "number" && growth > 20) reasons.push(`先週比 +${Math.round(growth)}% の伸び`);
+  const avgTagView = tagRows.length > 0 ? tagRows.reduce((s, r) => s + (r.view_count || 0), 0) / tagRows.length : 0;
+  const avgAllView = weekRows.length > 0 ? weekRows.reduce((s, r) => s + (r.view_count || 0), 0) / weekRows.length : 0;
+  if (avgAllView > 0 && avgTagView > avgAllView * 1.2) {
+    reasons.push(`平均再生数が全体平均の${(avgTagView / avgAllView).toFixed(1)}倍`);
+  }
+  reasons.push(`今週${tagRows.length}件投稿`);
+  return reasons;
+}
+
+function computeTagFitTotals(weekRows) {
+  const totals = {};
+  weekRows.forEach((r) => {
+    (r.tags || "").split(",").map((s) => s.trim()).filter(Boolean).forEach((tag) => {
+      if (!totals[tag]) totals[tag] = { curriculum: 0, videoIdea: 0 };
+      totals[tag].curriculum += r.curriculum_fit_score || 0;
+      totals[tag].videoIdea += r.video_idea_fit_score || 0;
+    });
+  });
+  return totals;
+}
+
+// ページ最上部の「企画会議サマリー」。タグ単位で授業化度・動画案度を集計し、
+// レッスン向けTOP3・動画向けTOP3を理由付きで見せる(=会議でそのまま読み上げられる形)。
+function renderMeetingSummary() {
+  const week = latestWeekLabel();
+  const weekRows = rows.filter((r) => r.week_label === week);
+  const fitTotals = computeTagFitTotals(weekRows);
+  const growthMap = computeTagGrowthMap();
+  const tags = Object.keys(fitTotals);
+
+  const lessonTop = tags.filter((t) => fitTotals[t].curriculum > 0)
+    .sort((a, b) => fitTotals[b].curriculum - fitTotals[a].curriculum).slice(0, 3);
+  const videoTop = tags.filter((t) => fitTotals[t].videoIdea > 0)
+    .sort((a, b) => fitTotals[b].videoIdea - fitTotals[a].videoIdea).slice(0, 3);
+
+  const maxLesson = Math.max(1, ...lessonTop.map((t) => fitTotals[t].curriculum));
+  const maxVideo = Math.max(1, ...videoTop.map((t) => fitTotals[t].videoIdea));
+
+  function column(title, items, scoreOf, maxScore) {
+    if (items.length === 0) {
+      return `<div><div class="summary-col-title">${title}</div><div class="status">対象データがありません</div></div>`;
+    }
+    const rowsHtml = items.map((tag) => {
+      const reasons = buildAdoptionReasons(tag, weekRows, growthMap);
+      return `
+        <div class="summary-row">
+          <span class="summary-stars">${starString(scoreOf(tag), maxScore)}</span>
+          <span class="summary-tag">${escapeHtml(tag)}</span>
+        </div>
+        <ul class="reason-list">${reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
+      `;
+    }).join("");
+    return `<div><div class="summary-col-title">${title}</div>${rowsHtml}</div>`;
+  }
+
+  document.getElementById("summaryGrid").innerHTML =
+    column("📚 ニコリヒトラボ おすすめ", lessonTop, (t) => fitTotals[t].curriculum, maxLesson) +
+    column("🎥 こっぴーふーチャンネル おすすめ", videoTop, (t) => fitTotals[t].videoIdea, maxVideo);
+
+  renderFooterCta(lessonTop, videoTop);
+}
+
+function renderFooterCta(lessonTop, videoTop) {
+  function list(items) {
+    return items.length > 0
+      ? `<ul class="cta-list">${items.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}</ul>`
+      : '<div class="status">対象データがありません</div>';
+  }
+  document.getElementById("ctaGrid").innerHTML = `
+    <div><div class="summary-col-title">📚 ニコリヒトラボ</div>${list(lessonTop)}</div>
+    <div><div class="summary-col-title">🎥 こっぴーふーチャンネル</div>${list(videoTop)}</div>
+  `;
+}
+
 function renderCandidates() {
   // タグ・チャンネル・キーワードの絞り込みには影響されず、週選択(未選択時は最新週)を基準に
   // Teamsカードと同じロジック(curriculumFitScore>0上位5件 / videoIdeaFitScore上位5件)で候補を出す。
   const week = document.getElementById("weekSelect").value || latestWeekLabel();
   const weekRows = rows.filter((r) => r.week_label === week);
+  const growthMap = computeTagGrowthMap();
 
   const curriculumCandidates = weekRows
     .filter((r) => (r.curriculum_fit_score ?? 0) > 0)
     .sort((a, b) => b.curriculum_fit_score - a.curriculum_fit_score)
     .slice(0, 5);
-  renderCandidateList("curriculumList", curriculumCandidates, "curriculum_fit_score", "授業化度");
+  renderCandidateList("curriculumList", curriculumCandidates, "curriculum_fit_score", "授業化度", weekRows, growthMap);
 
   const videoIdeaCandidates = [...weekRows]
     .sort((a, b) => b.video_idea_fit_score - a.video_idea_fit_score)
     .slice(0, 5);
-  renderCandidateList("videoIdeaList", videoIdeaCandidates, "video_idea_fit_score", "動画案度");
+  renderCandidateList("videoIdeaList", videoIdeaCandidates, "video_idea_fit_score", "動画案度", weekRows, growthMap);
 }
 
 function renderTable(filtered) {
@@ -688,7 +953,7 @@ function renderTable(filtered) {
   tbody.innerHTML = sorted.slice(0, 200).map((r) => `
     <tr>
       <td>${thumbImg(r, "thumb")}</td>
-      <td><div class="title-cell"><a class="title-link" href="${r.video_url}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a></div></td>
+      <td><div class="title-cell"><a class="title-link" href="${r.video_url}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a>${fitBadge(r)}</div></td>
       <td>${escapeHtml(r.channel_title ?? "")}</td>
       <td class="num">${formatNum(r.view_count)}</td>
       <td class="num">${formatNum(r.like_count)}</td>
