@@ -198,6 +198,8 @@
   .summary-tag { font-weight: 700; }
   .reason-list { margin: 10px 0 0; padding-left: 18px; color: var(--text-muted); font-size: 0.78rem; }
   .reason-list li { margin-bottom: 3px; }
+  .summary-example { font-size: 0.8rem; color: var(--text); margin: 4px 0 0; font-style: italic; }
+  .cta-list li b { font-weight: 700; font-style: normal; }
 
   .fit-badge { font-size: 0.68rem; padding: 2px 7px; border-radius: 999px; font-weight: 700; }
   .fit-badge.lesson { background: #dff3e3; color: #1f8a3d; }
@@ -876,6 +878,26 @@ function computeTagFitTotals(weekRows) {
 
 // ページ最上部の「企画会議サマリー」。タグ単位で授業化度・動画案度を集計し、
 // レッスン向けTOP3・動画向けTOP3を理由付きで見せる(=会議でそのまま読み上げられる形)。
+function lessonExampleFor(tag) {
+  const lesson = TAG_CONTENT[tag] && TAG_CONTENT[tag].lesson;
+  return lesson ? lesson.goal : null;
+}
+
+function videoExampleFor(tag) {
+  const video = (TAG_CONTENT[tag] && TAG_CONTENT[tag].video) || DEFAULT_VIDEO_CONTENT;
+  return video.titles[0];
+}
+
+// 授業テーマとしての適性を、人気度(buildAdoptionReasons)とは別の「教育目線」の
+// 理由として示す。実データに無い項目(対応バージョン等)は書かず、テンプレートから
+// 確実に言える内容(対象学年・所要時間・MOD要否)のみを理由にする。
+function buildLessonPedagogyReasons(tag) {
+  const lesson = TAG_CONTENT[tag] && TAG_CONTENT[tag].lesson;
+  if (!lesson) return [];
+  const modNote = tag === "アドオン" ? "MOD/アドオン制作が中心" : "MOD/アドオン不要";
+  return [`対象学年 ${lesson.grade}`, `所要時間 ${lesson.duration}`, modNote];
+}
+
 function renderMeetingSummary() {
   const week = latestWeekLabel();
   const weekRows = rows.filter((r) => r.week_label === week);
@@ -891,39 +913,43 @@ function renderMeetingSummary() {
   const maxLesson = Math.max(1, ...lessonTop.map((t) => fitTotals[t].curriculum));
   const maxVideo = Math.max(1, ...videoTop.map((t) => fitTotals[t].videoIdea));
 
-  function column(title, items, scoreOf, maxScore) {
+  function column(title, items, scoreOf, maxScore, isLesson) {
     if (items.length === 0) {
       return `<div><div class="summary-col-title">${title}</div><div class="status">対象データがありません</div></div>`;
     }
     const rowsHtml = items.map((tag) => {
       const reasons = buildAdoptionReasons(tag, weekRows, growthMap);
+      const pedagogyReasons = isLesson ? buildLessonPedagogyReasons(tag) : [];
+      const example = isLesson ? lessonExampleFor(tag) : videoExampleFor(tag);
       return `
         <div class="summary-row">
           <span class="summary-stars">${starString(scoreOf(tag), maxScore)}</span>
           <span class="summary-tag">${escapeHtml(tag)}</span>
         </div>
-        <ul class="reason-list">${reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
+        ${example ? `<div class="summary-example">${escapeHtml(example)}</div>` : ""}
+        <ul class="reason-list">${[...reasons, ...pedagogyReasons].map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
       `;
     }).join("");
     return `<div><div class="summary-col-title">${title}</div>${rowsHtml}</div>`;
   }
 
   document.getElementById("summaryGrid").innerHTML =
-    column("📚 ニコリヒトラボ おすすめ", lessonTop, (t) => fitTotals[t].curriculum, maxLesson) +
-    column("🎥 こっぴーふーチャンネル おすすめ", videoTop, (t) => fitTotals[t].videoIdea, maxVideo);
+    column("📚 ニコリヒトラボ おすすめ", lessonTop, (t) => fitTotals[t].curriculum, maxLesson, true) +
+    column("🎥 こっぴーふーチャンネル おすすめ", videoTop, (t) => fitTotals[t].videoIdea, maxVideo, false);
 
   renderFooterCta(lessonTop, videoTop);
 }
 
 function renderFooterCta(lessonTop, videoTop) {
-  function list(items) {
-    return items.length > 0
-      ? `<ul class="cta-list">${items.map((t) => `<li>${escapeHtml(t)}</li>`).join("")}</ul>`
-      : '<div class="status">対象データがありません</div>';
+  function list(items, exampleOf) {
+    if (items.length === 0) return '<div class="status">対象データがありません</div>';
+    return `<ul class="cta-list">${items.map((tag) =>
+      `<li><b>${escapeHtml(tag)}</b> — ${escapeHtml(exampleOf(tag))}</li>`
+    ).join("")}</ul>`;
   }
   document.getElementById("ctaGrid").innerHTML = `
-    <div><div class="summary-col-title">📚 ニコリヒトラボ</div>${list(lessonTop)}</div>
-    <div><div class="summary-col-title">🎥 こっぴーふーチャンネル</div>${list(videoTop)}</div>
+    <div><div class="summary-col-title">📚 ニコリヒトラボ</div>${list(lessonTop, (t) => lessonExampleFor(t) || videoExampleFor(t))}</div>
+    <div><div class="summary-col-title">🎥 こっぴーふーチャンネル</div>${list(videoTop, videoExampleFor)}</div>
   `;
 }
 
