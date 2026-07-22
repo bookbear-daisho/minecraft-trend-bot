@@ -1,9 +1,5 @@
 import { SHAREPOINT_DASHBOARD_URL, SUPABASE_DASHBOARD_URL } from "../config";
 import { TrendSummary, VideoRecord } from "../types/video";
-import { defaultIdeaGenerator, IdeaGenerator } from "./buildReport";
-import { rankVideos } from "./rankVideos";
-
-const TOP_N = 10;
 
 export type AdaptiveCard = Record<string, unknown>;
 
@@ -24,74 +20,90 @@ function formatDateTime(date: Date): string {
   )}`;
 }
 
-function buildVideoContainer(video: VideoRecord, rank: number): AdaptiveCard {
-  const increase = video.weeklyViewIncrease ?? 0;
-  const sign = increase >= 0 ? "+" : "";
-
-  return {
-    type: "Container",
-    spacing: "Medium",
-    separator: true,
-    items: [
-      {
-        type: "TextBlock",
-        text: `${rank}. 【${video.channelTitle}】${video.title}`,
-        wrap: true,
-        weight: "Bolder",
-      },
-      {
-        type: "TextBlock",
-        text: `再生数: ${formatNumber(video.viewCount)} ／ 週間増加推定: ${sign}${formatNumber(increase)} ／ コメント: ${formatNumber(video.commentCount)}`,
-        wrap: true,
-        isSubtle: true,
-        size: "Small",
-      },
-      {
-        type: "TextBlock",
-        text: `タグ: ${video.tags.length > 0 ? video.tags.join(" / ") : "なし"}`,
-        wrap: true,
-        isSubtle: true,
-        size: "Small",
-      },
-      ...(excerpt(video.description, 80)
-        ? [
-            {
-              type: "TextBlock",
-              text: `概要: ${excerpt(video.description, 80)}`,
-              wrap: true,
-              isSubtle: true,
-              size: "Small",
-            },
-          ]
-        : []),
-      {
-        type: "ActionSet",
-        actions: [
-          {
-            type: "Action.OpenUrl",
-            title: "動画を見る",
-            url: video.url,
-          },
-        ],
-      },
-    ],
-  };
+/**
+ * 「気になる部分」として1件だけ取り上げる動画を選ぶ。
+ * curriculumFitScore・videoIdeaFitScoreの合計が最も高い動画
+ * (=授業にもこっぴーふーチャンネルの企画にも使いやすい動画)を優先し、
+ * 同点の場合はtrendScoreで決める。Webダッシュボードの「今日のおすすめ」と同じ考え方。
+ */
+function pickFeaturedVideo(videos: VideoRecord[]): VideoRecord | undefined {
+  return [...videos].sort((a, b) => {
+    const scoreA = (a.curriculumFitScore ?? 0) + (a.videoIdeaFitScore ?? 0);
+    const scoreB = (b.curriculumFitScore ?? 0) + (b.videoIdeaFitScore ?? 0);
+    if (scoreB !== scoreA) return scoreB - scoreA;
+    return (b.trendScore ?? 0) - (a.trendScore ?? 0);
+  })[0];
 }
 
-function buildListSection(title: string, items: string[]): AdaptiveCard[] {
+function buildFeaturedSuggestion(video: VideoRecord): string {
+  const hasCurriculum = (video.curriculumFitScore ?? 0) > 0;
+  const hasVideoIdea = (video.videoIdeaFitScore ?? 0) > 0;
+  if (hasCurriculum && hasVideoIdea) {
+    return "ニコリヒトラボの授業テーマにも、こっぴーふーチャンネルの動画企画にも使えそうです。";
+  }
+  if (hasCurriculum) {
+    return "ニコリヒトラボの授業テーマとして使えそうです。";
+  }
+  if (hasVideoIdea) {
+    return "こっぴーふーチャンネルの動画企画に使えそうです。";
+  }
+  return "今週伸びている動画です。";
+}
+
+function buildFeaturedSection(video: VideoRecord): AdaptiveCard[] {
+  const increase = video.weeklyViewIncrease ?? 0;
+  const sign = increase >= 0 ? "+" : "";
+  const desc = excerpt(video.description, 80);
+
   return [
     {
       type: "TextBlock",
-      text: title,
-      wrap: true,
-      size: "Large",
+      text: "🔎 今週の気になる動画",
+      size: "Medium",
       weight: "Bolder",
-      spacing: "Large",
+      spacing: "Medium",
+      wrap: true,
     },
     {
       type: "TextBlock",
-      text: items.map((item, i) => `${i + 1}. ${item}`).join("\n\n"),
+      text: `【${video.channelTitle}】${video.title}`,
       wrap: true,
+      weight: "Bolder",
+    },
+    {
+      type: "TextBlock",
+      text: `再生数: ${formatNumber(video.viewCount)}(週間${sign}${formatNumber(increase)})`,
+      wrap: true,
+      isSubtle: true,
+      size: "Small",
+    },
+    ...(desc
+      ? [
+          {
+            type: "TextBlock",
+            text: `概要: ${desc}`,
+            wrap: true,
+            isSubtle: true,
+            size: "Small",
+          },
+        ]
+      : []),
+    {
+      type: "TextBlock",
+      text: `💡 ${buildFeaturedSuggestion(video)}`,
+      wrap: true,
+      weight: "Bolder",
+      color: "Good",
+    },
+    {
+      type: "ActionSet",
+      actions: [
+        {
+          type: "Action.OpenUrl",
+          title: "動画を見る",
+          url: video.url,
+        },
+      ],
     },
   ];
 }
@@ -100,20 +112,20 @@ function buildListSection(title: string, items: string[]): AdaptiveCard[] {
  * Power Automate / Incoming Webhook のどちらに投稿する場合も、
  * Markdown文字列(## や ** など)がHTMLとして誤表示される問題を避けるため、
  * Adaptive Card形式のJSONを直接組み立てて返す。
+ *
+ * 「通知 → 気になる部分 → 詳細ページを開く」の3段構成に絞ったシンプル版。
+ * TOP10の全件表示・傾向の箇条書き・授業化候補/動画案リストは、
+ * Web分析ダッシュボードの方が見やすく網羅的なため、Teamsには載せない。
  */
-export function buildAdaptiveCard(
-  videos: VideoRecord[],
-  trend: TrendSummary,
-  ideaGenerator: IdeaGenerator = defaultIdeaGenerator,
-): AdaptiveCard {
-  const { trendNotes, curriculumIdeas, videoIdeas } = ideaGenerator(videos, trend);
-  const ranked = rankVideos(videos, TOP_N);
+export function buildAdaptiveCard(videos: VideoRecord[], trend: TrendSummary): AdaptiveCard {
+  const featured = pickFeaturedVideo(videos);
+  const topTagNames = trend.topTags.slice(0, 3).map((t) => t.tag);
 
   const body: AdaptiveCard[] = [
     {
       type: "TextBlock",
-      text: "🎮 今週のマイクラ人気動画ランキング",
-      size: "ExtraLarge",
+      text: "🎮 マイクラトレンド更新",
+      size: "Large",
       weight: "Bolder",
       wrap: true,
     },
@@ -124,18 +136,19 @@ export function buildAdaptiveCard(
       size: "Small",
       wrap: true,
     },
-    {
-      type: "TextBlock",
-      text: `TOP ${TOP_N}`,
-      size: "Large",
-      weight: "Bolder",
-      spacing: "Large",
-      wrap: true,
-    },
-    ...ranked.map((video, i) => buildVideoContainer(video, i + 1)),
-    ...buildListSection("📈 今週の傾向", trendNotes),
-    ...buildListSection("🧑‍🏫 ニコリヒトラボ授業化候補", curriculumIdeas),
-    ...buildListSection("🎥 こっぴーふーチャンネル動画案", videoIdeas),
+    ...(featured ? buildFeaturedSection(featured) : []),
+    ...(topTagNames.length > 0
+      ? [
+          {
+            type: "TextBlock",
+            text: `📈 今週伸びているテーマ: ${topTagNames.join(" / ")}`,
+            wrap: true,
+            spacing: "Medium",
+            isSubtle: true,
+            size: "Small",
+          },
+        ]
+      : []),
   ];
 
   const dashboardActions: AdaptiveCard[] = [
