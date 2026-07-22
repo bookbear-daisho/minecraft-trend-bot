@@ -1,5 +1,8 @@
+import { IncludedReason } from "../analysis/rankVideos";
 import { SUPABASE_SERVICE_ROLE_KEY, SUPABASE_TABLE_NAME, SUPABASE_URL } from "../config";
 import { VideoRecord } from "../types/video";
+
+type SupabaseVideoInput = VideoRecord & { includedReason?: IncludedReason };
 
 function requireConfig(name: string, value: string): string {
   if (!value) {
@@ -8,7 +11,7 @@ function requireConfig(name: string, value: string): string {
   return value;
 }
 
-function toRow(video: VideoRecord, weekLabel: string): Record<string, unknown> {
+function toRow(video: SupabaseVideoInput, weekLabel: string): Record<string, unknown> {
   return {
     video_id: video.videoId,
     title: video.title,
@@ -26,6 +29,10 @@ function toRow(video: VideoRecord, weekLabel: string): Record<string, unknown> {
     curriculum_fit_score: video.curriculumFitScore,
     video_idea_fit_score: video.videoIdeaFitScore,
     thumbnail_url: video.thumbnailUrl ?? null,
+    // "trend"(通常のtrend_score上位) / "lesson_guarantee"
+    // (trend_score圏外だがcurriculumFitScore上位のため別枠で確保)。
+    // 未指定(SharePoint専用パス等)の場合は通常のtrend扱いとする。
+    included_reason: video.includedReason ?? "trend",
   };
 }
 
@@ -35,7 +42,7 @@ function toRow(video: VideoRecord, weekLabel: string): Record<string, unknown> {
  * Supabase Table Editorで直接閲覧できるようにするため)。
  * PostgRESTのbulk insertを使い、1回のリクエストでまとめて送る。
  */
-export async function saveToSupabase(videos: VideoRecord[], fetchedAt: string): Promise<void> {
+export async function saveToSupabase(videos: SupabaseVideoInput[], fetchedAt: string): Promise<void> {
   const url = requireConfig("SUPABASE_URL", SUPABASE_URL);
   const serviceRoleKey = requireConfig("SUPABASE_SERVICE_ROLE_KEY", SUPABASE_SERVICE_ROLE_KEY);
   const weekLabel = fetchedAt.slice(0, 10);

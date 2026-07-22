@@ -219,6 +219,7 @@
     .fit-badge.video { background: #16283f; color: #6fa8ea; }
     .fit-badge.both { background: #3f2a12; color: #f0a94e; }
   }
+  .guarantee-note { font-size: 0.68rem; color: var(--text-muted); font-style: italic; }
 
   .format-toggle { margin-top: 8px; }
   .format-toggle summary { cursor: pointer; color: var(--accent); font-size: 0.75rem; font-weight: 600; list-style: none; }
@@ -583,6 +584,7 @@ function renderCards(filtered) {
         ${thumbImg(r, "thumb-lg")}
         <div class="vc-title"><a class="title-link" href="${r.video_url}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a></div>
         <div class="vc-meta"><span class="tier-dot tier-${tier}"></span>${escapeHtml(r.channel_title ?? "")} ${fitBadge(r)}</div>
+        ${guaranteeNote(r)}
         <div class="vc-badges">
           <span class="vc-badge">再生 ${formatNum(r.view_count)}</span>
           ${deltaBadge(r.weekly_view_increase)}
@@ -675,6 +677,7 @@ function renderCandidateList(elementId, items, scoreKey, scoreLabel, weekRows, g
         ${fitBadge(r)}
         <span class="candidate-score">${scoreLabel} ${formatNum(r[scoreKey])}</span>
         <div class="candidate-meta">${escapeHtml(r.channel_title ?? "")} ・ ${escapeHtml(r.tags ?? "")}</div>
+        ${guaranteeNote(r)}
         ${reasons.length > 0 ? `<ul class="reason-list">${reasons.map((rs) => `<li>${escapeHtml(rs)}</li>`).join("")}</ul>` : ""}
         ${renderFormatBlock(r)}
       </div>
@@ -823,6 +826,15 @@ function fitBadge(row) {
   if (c > 0) return '<span class="fit-badge lesson">🟢 授業向け</span>';
   if (v > 0) return '<span class="fit-badge video">🔵 動画向け</span>';
   return "";
+}
+
+// trend_score上位30件には入らないが、授業テーマ(curriculum_fit_score)の
+// 動画が0件にならないよう別枠で確保した動画には注意書きを付ける。
+// (past data: included_reasonが無いレコードは通常のtrend_score枠として扱う)
+function guaranteeNote(row) {
+  return row.included_reason === "lesson_guarantee"
+    ? '<span class="guarantee-note">※trend_score圏外から授業テーマ枠で確保</span>'
+    : "";
 }
 
 // 候補動画のタグから、テンプレート化されたレッスン企画・動画企画フォーマットを組み立てる。

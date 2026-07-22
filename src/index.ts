@@ -1,7 +1,7 @@
 import { buildAdaptiveCard } from "./analysis/buildAdaptiveCard";
 import { buildTrendSummary } from "./analysis/buildReport";
 import { classifyVideos } from "./analysis/classifyVideos";
-import { rankVideos } from "./analysis/rankVideos";
+import { rankVideos, rankVideosWithLessonGuarantee } from "./analysis/rankVideos";
 import { scoreVideos } from "./analysis/scoreVideos";
 import { SHAREPOINT_ENABLED, SHAREPOINT_SAVE_TOP_N, SUPABASE_ENABLED, SUPABASE_SAVE_TOP_N } from "./config";
 import { loadLatestSnapshot } from "./storage/loadSnapshot";
@@ -40,7 +40,7 @@ async function main(): Promise<void> {
 
   if (SUPABASE_ENABLED) {
     console.log("[7/8] Supabaseへ履歴を保存中...");
-    const topForSupabase = rankVideos(scoredVideos, SUPABASE_SAVE_TOP_N);
+    const topForSupabase = rankVideosWithLessonGuarantee(scoredVideos, SUPABASE_SAVE_TOP_N);
     await saveToSupabase(topForSupabase, snapshot.fetchedAt);
   } else {
     console.log("[7/8] Supabase連携は無効(SUPABASE_ENABLED=true未設定)のためスキップ");
