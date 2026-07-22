@@ -869,6 +869,12 @@ function buildAdoptionReasons(tag, weekRows, growthMap) {
   if (avgAllView > 0 && avgTagView > avgAllView * 1.2) {
     reasons.push(`平均再生数が全体平均の${(avgTagView / avgAllView).toFixed(1)}倍`);
   }
+  const likeRate = (r) => (r.view_count || 0) > 0 ? (r.like_count || 0) / r.view_count : 0;
+  const avgTagLikeRate = tagRows.length > 0 ? tagRows.reduce((s, r) => s + likeRate(r), 0) / tagRows.length : 0;
+  const avgAllLikeRate = weekRows.length > 0 ? weekRows.reduce((s, r) => s + likeRate(r), 0) / weekRows.length : 0;
+  if (avgAllLikeRate > 0 && avgTagLikeRate > avgAllLikeRate * 1.2) {
+    reasons.push(`平均高評価率が全体平均の${(avgTagLikeRate / avgAllLikeRate).toFixed(1)}倍`);
+  }
   reasons.push(`今週${tagRows.length}件投稿`);
   return reasons;
 }
@@ -940,10 +946,13 @@ function renderPlanCard(tag, score, maxScore, isLesson, weekRows, growthMap) {
   }
 
   const titles = videoTitlesFor(tag);
+  const video = (TAG_CONTENT[tag] && TAG_CONTENT[tag].video) || DEFAULT_VIDEO_CONTENT;
   return `
     <div class="plan-card">
       <div class="plan-card-stars"><span class="stars">${stars}</span><span class="stars-label">予想再生</span></div>
       <div class="plan-card-titles">${titles.map((t) => `<div>・${escapeHtml(t)}</div>`).join("")}</div>
+      <div class="plan-card-row"><b>想定ターゲット</b>${escapeHtml(video.audience)}</div>
+      <div class="plan-card-row"><b>構成案</b>${escapeHtml(video.structure.join(" "))}</div>
       <ul class="reason-list">${reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
     </div>
   `;
