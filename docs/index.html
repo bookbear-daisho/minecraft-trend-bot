@@ -192,14 +192,23 @@
   .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
   @media (max-width: 720px) { .summary-grid { grid-template-columns: 1fr; } }
   .summary-col-title { font-weight: 700; font-size: 0.9rem; margin-bottom: 10px; }
-  .summary-row { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
-  .summary-row:last-child { border-bottom: none; }
-  .summary-stars { color: var(--accent); letter-spacing: 1px; flex-shrink: 0; }
-  .summary-tag { font-weight: 700; }
-  .reason-list { margin: 10px 0 0; padding-left: 18px; color: var(--text-muted); font-size: 0.78rem; }
+  .reason-list { margin: 8px 0 0; padding-left: 18px; color: var(--text-muted); font-size: 0.78rem; }
   .reason-list li { margin-bottom: 3px; }
-  .summary-example { font-size: 0.8rem; color: var(--text); margin: 4px 0 0; font-style: italic; }
   .cta-list li b { font-weight: 700; font-style: normal; }
+
+  .plan-card {
+    border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+    margin-bottom: 12px; background: var(--bg);
+  }
+  .plan-card:last-child { margin-bottom: 0; }
+  .plan-card-stars { display: flex; align-items: baseline; gap: 6px; }
+  .plan-card-stars .stars { color: var(--accent); letter-spacing: 1px; }
+  .plan-card-stars .stars-label { font-size: 0.68rem; color: var(--text-muted); }
+  .plan-card-title { font-weight: 700; font-size: 0.92rem; margin-top: 4px; }
+  .plan-card-titles { font-weight: 700; font-size: 0.85rem; margin-top: 4px; }
+  .plan-card-titles div { margin-bottom: 2px; }
+  .plan-card-row { font-size: 0.8rem; color: var(--text-muted); margin-top: 4px; }
+  .plan-card-row b { color: var(--text); margin-right: 4px; }
 
   .fit-badge { font-size: 0.68rem; padding: 2px 7px; border-radius: 999px; font-weight: 700; }
   .fit-badge.lesson { background: #dff3e3; color: #1f8a3d; }
@@ -402,48 +411,48 @@ let tagChart, trendChart, channelChart;
 // 実際の動画データと組み合わせて「そのまま使える形」まで提示する。
 const TAG_CONTENT = {
   "建築": {
-    lesson: { grade: "小学3〜6年", learn: ["設計・空間認識", "色や素材の組み合わせ", "完成までの計画力"], duration: "60分", goal: "テーマ建築(基地・街など)を仕上げる" },
-    video: { titles: ["初心者でも作れる神建築5選", "人気建築を真似して作ってみた"], thumbnail: "「これが小学生の作品!?」", structure: ["①今週人気の建築を紹介", "②実際に真似して作る", "③でき映えを検証", "④まとめ"], audience: "小学生〜建築好き層" },
+    lesson: { title: "初心者建築教室", level: "初心者向け", grade: "小学3〜6年", learn: ["設計・空間認識", "色や素材の組み合わせ", "完成までの計画力"], duration: "60分", goal: "テーマ建築(基地・街など)を仕上げる" },
+    video: { titles: ["初心者でも作れる神建築5選", "海外で流行中の建築を日本で作ってみた", "今一番バズってる家を再現してみた"], thumbnail: "「これが小学生の作品!?」", structure: ["①今週人気の建築を紹介", "②実際に真似して作る", "③でき映えを検証", "④まとめ"], audience: "小学生〜建築好き層" },
   },
   "サバイバル": {
-    lesson: { grade: "小学4〜6年", learn: ["計画的な資源管理", "リスク管理", "粘り強さ"], duration: "60分", goal: "◯日間生き延びるミニサバイバルを達成する" },
-    video: { titles: ["小学生だけで◯日間サバイバル生活してみた", "縛りありサバイバルに挑戦"], thumbnail: "「まさかの結末に…」", structure: ["①ルール説明", "②サバイバル生活", "③ハプニング", "④結果発表"], audience: "サバイバル系ファン" },
+    lesson: { title: "◯日間サバイバル教室", level: "中級者向け", grade: "小学4〜6年", learn: ["計画的な資源管理", "リスク管理", "粘り強さ"], duration: "60分", goal: "◯日間生き延びるミニサバイバルを達成する" },
+    video: { titles: ["小学生だけで◯日間サバイバル生活してみた", "縛りありサバイバルに挑戦してみた"], thumbnail: "「まさかの結末に…」", structure: ["①ルール説明", "②サバイバル生活", "③ハプニング", "④結果発表"], audience: "サバイバル系ファン" },
   },
   "コマンド": {
-    lesson: { grade: "小学5年〜中学生", learn: ["論理的思考", "順序立てた指示の組み立て"], duration: "45分", goal: "コマンドで簡単な仕掛けを一瞬で作る" },
-    video: { titles: ["コマンドだけで一瞬で作ってみた", "神コマンド集"], thumbnail: "「たった1行でこうなる」", structure: ["①コマンド紹介", "②実演", "③応用アイデア", "④まとめ"], audience: "コマンドに興味がある層" },
+    lesson: { title: "コマンド入門教室", level: "初心者向け", grade: "小学5年〜中学生", learn: ["論理的思考", "順序立てた指示の組み立て"], duration: "45分", goal: "コマンドで簡単な仕掛けを一瞬で作る" },
+    video: { titles: ["コマンドだけで一瞬で作ってみた", "神コマンド集", "1コマンドで街を作ってみた"], thumbnail: "「たった1行でこうなる」", structure: ["①コマンド紹介", "②実演", "③応用アイデア", "④まとめ"], audience: "コマンドに興味がある層" },
   },
   "アドオン": {
-    lesson: { grade: "小学5年〜中学生", learn: ["プログラミング的思考", "アイデアを形にする力"], duration: "90分", goal: "オリジナルアドオンを1つ完成させる" },
-    video: { titles: ["小学生が考えたオリジナルアドオンを形にしてみた"], thumbnail: "「自分だけのMOD誕生」", structure: ["①企画", "②制作", "③テストプレイ", "④紹介"], audience: "MOD/アドオンファン" },
+    lesson: { title: "オリジナルアドオン制作教室", level: "中級者向け", grade: "小学5年〜中学生", learn: ["プログラミング的思考", "アイデアを形にする力"], duration: "90分", goal: "オリジナルアドオンを1つ完成させる" },
+    video: { titles: ["小学生が考えたオリジナルアドオンを形にしてみた", "自作アドオンを検証してみた"], thumbnail: "「自分だけのMOD誕生」", structure: ["①企画", "②制作", "③テストプレイ", "④紹介"], audience: "MOD/アドオンファン" },
   },
   "レッドストーン": {
-    lesson: { grade: "小学5年〜中学生", learn: ["回路・論理設計", "試行錯誤する力"], duration: "60分", goal: "自動ドアや簡単なトラップを完成させる" },
-    video: { titles: ["レッドストーンだけで作る仕掛け屋敷"], thumbnail: "「回路だけでこんなことが」", structure: ["①仕組み解説", "②制作", "③動作チェック", "④まとめ"], audience: "工作・仕組み好き層" },
+    lesson: { title: "レッドストーン回路教室", level: "中級者向け", grade: "小学5年〜中学生", learn: ["回路・論理設計", "試行錯誤する力"], duration: "60分", goal: "自動ドアや簡単なトラップを完成させる" },
+    video: { titles: ["レッドストーンだけで作る仕掛け屋敷", "自動ドアを作ってみた"], thumbnail: "「回路だけでこんなことが」", structure: ["①仕組み解説", "②制作", "③動作チェック", "④まとめ"], audience: "工作・仕組み好き層" },
   },
   "脱出・謎解き": {
-    lesson: { grade: "小学3〜6年", learn: ["論理的思考", "チームでの協力"], duration: "60分", goal: "脱出・謎解きマップを完成させ、実際にプレイする" },
-    video: { titles: ["本気で作った脱出ゲームに挑戦してみた"], thumbnail: "「まさかのトリックに騙された」", structure: ["①マップ紹介", "②挑戦", "③ネタバレ解説", "④まとめ"], audience: "謎解き好き層" },
+    lesson: { title: "脱出・謎解きマップ制作教室", level: "初心者向け", grade: "小学3〜6年", learn: ["論理的思考", "チームでの協力"], duration: "60分", goal: "脱出・謎解きマップを完成させ、実際にプレイする" },
+    video: { titles: ["本気で作った脱出ゲームに挑戦してみた", "小学生が考えた激ムズ謎解きに挑戦"], thumbnail: "「まさかのトリックに騙された」", structure: ["①マップ紹介", "②挑戦", "③ネタバレ解説", "④まとめ"], audience: "謎解き好き層" },
   },
   "ミニゲーム": {
-    lesson: { grade: "小学3〜6年", learn: ["ルール設計", "フェアプレイの意識"], duration: "45分", goal: "オリジナルの逃走中・ミニゲームを自作する" },
-    video: { titles: ["マイクラ逃走中をやってみた"], thumbnail: "「まさかの結末」", structure: ["①ルール説明", "②対戦", "③名場面", "④結果"], audience: "ミニゲーム系ファン" },
+    lesson: { title: "オリジナルミニゲーム制作教室", level: "初心者向け", grade: "小学3〜6年", learn: ["ルール設計", "フェアプレイの意識"], duration: "45分", goal: "オリジナルの逃走中・ミニゲームを自作する" },
+    video: { titles: ["マイクラ逃走中をやってみた", "自作ミニゲームで対決してみた"], thumbnail: "「まさかの結末」", structure: ["①ルール説明", "②対戦", "③名場面", "④結果"], audience: "ミニゲーム系ファン" },
   },
   "セキュリティ": {
-    lesson: { grade: "小学4〜6年", learn: ["防御・対策を考える力", "レッドストーン応用"], duration: "60分", goal: "セキュリティハウスを完成させ、村を守る" },
-    video: { titles: ["最強セキュリティハウスを作ってみた"], thumbnail: "「これは開けられない」", structure: ["①設計", "②制作", "③突破テスト", "④まとめ"], audience: "工作・防犯ネタ好き層" },
+    lesson: { title: "セキュリティハウス建築教室", level: "中級者向け", grade: "小学4〜6年", learn: ["防御・対策を考える力", "レッドストーン応用"], duration: "60分", goal: "セキュリティハウスを完成させ、村を守る" },
+    video: { titles: ["最強セキュリティハウスを作ってみた", "どんな泥棒も入れない家を検証してみた"], thumbnail: "「これは開けられない」", structure: ["①設計", "②制作", "③突破テスト", "④まとめ"], audience: "工作・防犯ネタ好き層" },
   },
   "AI活用候補": {
-    lesson: { grade: "小学5年〜中学生", learn: ["AIとの協働", "指示(プロンプト)の工夫"], duration: "60分", goal: "AIに設計させた案をマイクラで再現する" },
-    video: { titles: ["AIに秘密基地を設計させたら小学生でも作れるのか?"], thumbnail: "「AI vs 小学生」", structure: ["①AIに依頼", "②再現に挑戦", "③検証", "④まとめ"], audience: "AI・最新技術に関心がある層" },
+    lesson: { title: "AI活用ものづくり教室", level: "中級者向け", grade: "小学5年〜中学生", learn: ["AIとの協働", "指示(プロンプト)の工夫"], duration: "60分", goal: "AIに設計させた案をマイクラで再現する" },
+    video: { titles: ["AIに秘密基地を設計させたら小学生でも作れるのか?", "AI vs 小学生 建築対決"], thumbnail: "「AI vs 小学生」", structure: ["①AIに依頼", "②再現に挑戦", "③検証", "④まとめ"], audience: "AI・最新技術に関心がある層" },
   },
   "ホラー": {
     lesson: null,
-    video: { titles: ["ホラーMODを検証してみた"], thumbnail: "「本当に怖すぎた」", structure: ["①MOD紹介", "②体験", "③リアクション", "④まとめ"], audience: "ホラー系ファン" },
+    video: { titles: ["ホラーMODを検証してみた", "一番怖いMODはどれか対決してみた"], thumbnail: "「本当に怖すぎた」", structure: ["①MOD紹介", "②体験", "③リアクション", "④まとめ"], audience: "ホラー系ファン" },
   },
 };
 const DEFAULT_VIDEO_CONTENT = {
-  titles: ["今週話題の企画を再現してみた"], thumbnail: "「今週一番伸びていた動画がこちら」",
+  titles: ["今週話題の企画を再現してみた", "今一番伸びてる動画を検証してみた"], thumbnail: "「今週一番伸びていた動画がこちら」",
   structure: ["①紹介", "②やってみる", "③検証", "④まとめ"], audience: "幅広い層",
 };
 
@@ -883,19 +892,61 @@ function lessonExampleFor(tag) {
   return lesson ? lesson.goal : null;
 }
 
+function lessonTitleFor(tag) {
+  const lesson = TAG_CONTENT[tag] && TAG_CONTENT[tag].lesson;
+  return lesson ? lesson.title : null;
+}
+
+function lessonLevelFor(tag) {
+  const lesson = TAG_CONTENT[tag] && TAG_CONTENT[tag].lesson;
+  return lesson ? lesson.level : null;
+}
+
 function videoExampleFor(tag) {
-  const video = (TAG_CONTENT[tag] && TAG_CONTENT[tag].video) || DEFAULT_VIDEO_CONTENT;
-  return video.titles[0];
+  return videoTitlesFor(tag)[0];
+}
+
+function videoTitlesFor(tag) {
+  return ((TAG_CONTENT[tag] && TAG_CONTENT[tag].video) || DEFAULT_VIDEO_CONTENT).titles;
 }
 
 // 授業テーマとしての適性を、人気度(buildAdoptionReasons)とは別の「教育目線」の
-// 理由として示す。実データに無い項目(対応バージョン等)は書かず、テンプレートから
-// 確実に言える内容(対象学年・所要時間・MOD要否)のみを理由にする。
-function buildLessonPedagogyReasons(tag) {
-  const lesson = TAG_CONTENT[tag] && TAG_CONTENT[tag].lesson;
-  if (!lesson) return [];
-  const modNote = tag === "アドオン" ? "MOD/アドオン制作が中心" : "MOD/アドオン不要";
-  return [`対象学年 ${lesson.grade}`, `所要時間 ${lesson.duration}`, modNote];
+// 事実として示す。実データに無い項目(対応バージョン等)は書かず、テンプレートから
+// 確実に言える内容(MOD要否)のみを理由に含める。
+function modNoteFor(tag) {
+  return tag === "アドオン" ? "MOD/アドオン制作が中心" : "MOD/アドオン不要";
+}
+
+// レッスン企画・動画企画それぞれを「そのまま企画会議で読み上げられる形」の
+// カードとして組み立てる。タイトル・対象・学べること・理由まで1枚にまとめる。
+function renderPlanCard(tag, score, maxScore, isLesson, weekRows, growthMap) {
+  const stars = starString(score, maxScore);
+  const reasons = buildAdoptionReasons(tag, weekRows, growthMap);
+
+  if (isLesson) {
+    const lesson = TAG_CONTENT[tag] && TAG_CONTENT[tag].lesson;
+    if (!lesson) return "";
+    return `
+      <div class="plan-card">
+        <div class="plan-card-stars"><span class="stars">${stars}</span><span class="stars-label">おすすめ度</span></div>
+        <div class="plan-card-title">${escapeHtml(lesson.title)}</div>
+        <div class="plan-card-row"><b>対象</b>${escapeHtml(lesson.grade)}・${escapeHtml(lesson.level)}</div>
+        <div class="plan-card-row"><b>学べること</b>${escapeHtml(lesson.learn.join(" / "))}</div>
+        <div class="plan-card-row"><b>所要時間</b>${escapeHtml(lesson.duration)}・${escapeHtml(modNoteFor(tag))}</div>
+        <div class="plan-card-row"><b>完成目標</b>${escapeHtml(lesson.goal)}</div>
+        <ul class="reason-list">${reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
+      </div>
+    `;
+  }
+
+  const titles = videoTitlesFor(tag);
+  return `
+    <div class="plan-card">
+      <div class="plan-card-stars"><span class="stars">${stars}</span><span class="stars-label">予想再生</span></div>
+      <div class="plan-card-titles">${titles.map((t) => `<div>・${escapeHtml(t)}</div>`).join("")}</div>
+      <ul class="reason-list">${reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
+    </div>
+  `;
 }
 
 function renderMeetingSummary() {
@@ -905,7 +956,7 @@ function renderMeetingSummary() {
   const growthMap = computeTagGrowthMap();
   const tags = Object.keys(fitTotals);
 
-  const lessonTop = tags.filter((t) => fitTotals[t].curriculum > 0)
+  const lessonTop = tags.filter((t) => fitTotals[t].curriculum > 0 && TAG_CONTENT[t] && TAG_CONTENT[t].lesson)
     .sort((a, b) => fitTotals[b].curriculum - fitTotals[a].curriculum).slice(0, 3);
   const videoTop = tags.filter((t) => fitTotals[t].videoIdea > 0)
     .sort((a, b) => fitTotals[b].videoIdea - fitTotals[a].videoIdea).slice(0, 3);
@@ -917,20 +968,8 @@ function renderMeetingSummary() {
     if (items.length === 0) {
       return `<div><div class="summary-col-title">${title}</div><div class="status">対象データがありません</div></div>`;
     }
-    const rowsHtml = items.map((tag) => {
-      const reasons = buildAdoptionReasons(tag, weekRows, growthMap);
-      const pedagogyReasons = isLesson ? buildLessonPedagogyReasons(tag) : [];
-      const example = isLesson ? lessonExampleFor(tag) : videoExampleFor(tag);
-      return `
-        <div class="summary-row">
-          <span class="summary-stars">${starString(scoreOf(tag), maxScore)}</span>
-          <span class="summary-tag">${escapeHtml(tag)}</span>
-        </div>
-        ${example ? `<div class="summary-example">${escapeHtml(example)}</div>` : ""}
-        <ul class="reason-list">${[...reasons, ...pedagogyReasons].map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul>
-      `;
-    }).join("");
-    return `<div><div class="summary-col-title">${title}</div>${rowsHtml}</div>`;
+    const cards = items.map((tag) => renderPlanCard(tag, scoreOf(tag), maxScore, isLesson, weekRows, growthMap)).join("");
+    return `<div><div class="summary-col-title">${title}</div>${cards}</div>`;
   }
 
   document.getElementById("summaryGrid").innerHTML =
@@ -941,15 +980,21 @@ function renderMeetingSummary() {
 }
 
 function renderFooterCta(lessonTop, videoTop) {
-  function list(items, exampleOf) {
+  function lessonList(items) {
     if (items.length === 0) return '<div class="status">対象データがありません</div>';
     return `<ul class="cta-list">${items.map((tag) =>
-      `<li><b>${escapeHtml(tag)}</b> — ${escapeHtml(exampleOf(tag))}</li>`
+      `<li><b>${escapeHtml(lessonTitleFor(tag) || tag)}</b>(${escapeHtml(lessonLevelFor(tag) || tag)}) — ${escapeHtml(lessonExampleFor(tag))}</li>`
+    ).join("")}</ul>`;
+  }
+  function videoList(items) {
+    if (items.length === 0) return '<div class="status">対象データがありません</div>';
+    return `<ul class="cta-list">${items.map((tag) =>
+      `<li><b>${escapeHtml(tag)}</b> — ${escapeHtml(videoTitlesFor(tag).join(" / "))}</li>`
     ).join("")}</ul>`;
   }
   document.getElementById("ctaGrid").innerHTML = `
-    <div><div class="summary-col-title">📚 ニコリヒトラボ</div>${list(lessonTop, (t) => lessonExampleFor(t) || videoExampleFor(t))}</div>
-    <div><div class="summary-col-title">🎥 こっぴーふーチャンネル</div>${list(videoTop, videoExampleFor)}</div>
+    <div><div class="summary-col-title">📚 ニコリヒトラボ</div>${lessonList(lessonTop)}</div>
+    <div><div class="summary-col-title">🎥 こっぴーふーチャンネル</div>${videoList(videoTop)}</div>
   `;
 }
 
