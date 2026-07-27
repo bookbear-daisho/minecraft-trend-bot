@@ -163,6 +163,12 @@
   .theme-dot.on { background: var(--accent); }
   .theme-stat { font-size: 0.72rem; color: var(--text-muted); display: flex; justify-content: space-between; margin-top: 2px; }
   .theme-hashtags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .rank-change { font-size: 0.68rem; font-weight: 700; padding: 1px 5px; border-radius: 5px; margin-left: 4px; }
+  .rank-change.up { background: var(--accent-soft); color: var(--accent); }
+  .rank-change.down { background: var(--coral-soft); color: var(--coral); }
+  .rank-change.flat { background: var(--bg); color: var(--text-muted); }
+  .rank-change.new { background: var(--indigo-soft); color: var(--indigo); }
+  .theme-history { font-size: 0.68rem; color: var(--text-muted); margin-top: 4px; }
 
   /* --- Lesson candidate cards --- */
   .lesson-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
@@ -456,6 +462,21 @@
           <p class="view-desc" id="risingNoteFull"></p>
         </div>
         <div class="panel">
+          <div class="filters" style="margin-bottom:14px;">
+            <div class="field" style="flex:0 1 200px;">
+              <label for="risingTagFilter">タグで絞り込み</label>
+              <select id="risingTagFilter"><option value="">すべてのタグ</option></select>
+            </div>
+            <div class="field" style="flex:0 1 220px;">
+              <label for="risingSortSelect">並び替え</label>
+              <select id="risingSortSelect">
+                <option value="growth">急上昇率(先週比)</option>
+                <option value="count">動画数</option>
+                <option value="views">週合計再生数</option>
+                <option value="streak">連続ランクイン週数</option>
+              </select>
+            </div>
+          </div>
           <div class="theme-row" id="risingFullRow"></div>
         </div>
       </section>
@@ -467,6 +488,20 @@
           <p class="view-desc">curriculum_fit_score上位のテーマを、レッスン企画としてそのまま使える形で一覧表示します。</p>
         </div>
         <div class="panel">
+          <div class="filters" style="margin-bottom:14px;">
+            <div class="field" style="flex:0 1 200px;">
+              <label for="lessonTagFilter">タグで絞り込み</label>
+              <select id="lessonTagFilter"><option value="">すべてのタグ</option></select>
+            </div>
+            <div class="field" style="flex:0 1 220px;">
+              <label for="lessonSortSelect">並び替え</label>
+              <select id="lessonSortSelect">
+                <option value="score">授業化度</option>
+                <option value="growth">先週比の伸び率</option>
+                <option value="count">今週の動画数</option>
+              </select>
+            </div>
+          </div>
           <div class="lesson-row" id="lessonFullRow"></div>
         </div>
       </section>
@@ -510,6 +545,8 @@
                 <option value="trend_score">trend_score</option>
                 <option value="view_count">再生数</option>
                 <option value="weekly_view_increase">週間再生増</option>
+                <option value="growth_rate">増加率(週間再生増÷再生数)</option>
+                <option value="like_rate">高評価率(高評価数÷再生数)</option>
                 <option value="curriculum_fit_score">授業化度</option>
                 <option value="video_idea_fit_score">動画案度</option>
                 <option value="published_at">公開日</option>
@@ -1084,10 +1121,22 @@ function renderCards(filtered) {
   bindAddToBoardButtons(grid);
 }
 
+// trend_score等の生カラムに加え、増加率・高評価率のような比率は生データに
+// 無いため、並び替え時にその場で算出する(仮想キー)。
+function sortValueOf(row, key) {
+  if (key === "growth_rate") {
+    return (row.view_count || 0) > 0 ? (row.weekly_view_increase || 0) / row.view_count : 0;
+  }
+  if (key === "like_rate") {
+    return (row.view_count || 0) > 0 ? (row.like_count || 0) / row.view_count : 0;
+  }
+  return row[key] ?? "";
+}
+
 function sortRows(list) {
   return [...list].sort((a, b) => {
-    const av = a[sortKey] ?? "";
-    const bv = b[sortKey] ?? "";
+    const av = sortValueOf(a, sortKey);
+    const bv = sortValueOf(b, sortKey);
     if (typeof av === "number" && typeof bv === "number") {
       return sortDir === "asc" ? av - bv : bv - av;
     }
@@ -1638,6 +1687,63 @@ function computeTagGrowthMap() {
 }
 
 /* ================= 急上昇テーマ(カード化) ================= */
+// 週ごとにタグをtrend_score合計で順位付けしたものをキャッシュする。
+// 「先週比の順位変動」「連続ランクイン週数」「過去数週間の順位推移」は
+// すべてこの実データ(複数週分のSupabase保存分)だけから機械的に算出する。
+let __weeklyTagRanksCache = null;
+function computeWeeklyTagRanks() {
+  if (__weeklyTagRanksCache && __weeklyTagRanksCache.rowsRef === rows) return __weeklyTagRanksCache;
+  const weeks = weekList();
+  const perWeek = {};
+  weeks.forEach((w) => {
+    const totals = computeTagTrendTotals(rows.filter((r) => r.week_label === w));
+    perWeek[w] = Object.keys(totals).sort((a, b) => totals[b] - totals[a]);
+  });
+  __weeklyTagRanksCache = { rowsRef: rows, weeks, perWeek };
+  return __weeklyTagRanksCache;
+}
+
+function tagRankInWeek(perWeek, week, tag) {
+  const idx = (perWeek[week] || []).indexOf(tag);
+  return idx === -1 ? null : idx + 1;
+}
+
+function rankChangeHtml(tag) {
+  const { weeks, perWeek } = computeWeeklyTagRanks();
+  if (!weeks[1]) return "";
+  const cur = tagRankInWeek(perWeek, weeks[0], tag);
+  const prev = tagRankInWeek(perWeek, weeks[1], tag);
+  if (cur === null) return "";
+  if (prev === null) return '<span class="rank-change new">NEW</span>';
+  const diff = prev - cur;
+  if (diff > 0) return `<span class="rank-change up">▲${diff}</span>`;
+  if (diff < 0) return `<span class="rank-change down">▼${Math.abs(diff)}</span>`;
+  return '<span class="rank-change flat">→</span>';
+}
+
+// 直近週から遡って、上位N位(既定5位)以内に何週連続で入っているかを数える。
+function consecutiveTopStreak(tag, topN) {
+  const { weeks, perWeek } = computeWeeklyTagRanks();
+  let streak = 0;
+  for (const w of weeks) {
+    const rank = tagRankInWeek(perWeek, w, tag);
+    if (rank !== null && rank <= topN) streak += 1;
+    else break;
+  }
+  return streak;
+}
+
+function rankHistoryHtml(tag, span) {
+  const { weeks, perWeek } = computeWeeklyTagRanks();
+  const recent = weeks.slice(0, span).reverse();
+  if (recent.length <= 1) return "";
+  const parts = recent.map((w) => {
+    const r = tagRankInWeek(perWeek, w, tag);
+    return r === null ? "-" : `${r}位`;
+  });
+  return `<div class="theme-history">順位推移: ${parts.join(" → ")}</div>`;
+}
+
 function themeCardHtml(tag, growth, weekRows) {
   const tagRows = weekRows.filter((r) => (r.tags || "").split(",").map((s) => s.trim()).includes(tag));
   const topVideo = [...tagRows].sort((a, b) => (b.trend_score || 0) - (a.trend_score || 0))[0];
@@ -1646,6 +1752,7 @@ function themeCardHtml(tag, growth, weekRows) {
   const growthPct = typeof growth === "number" ? growth : isNew ? 100 : 0;
   const dotsOn = Math.max(1, Math.min(5, Math.round((Math.min(Math.abs(growthPct), 200) / 200) * 5)));
   const otherTags = topVideo ? (topVideo.tags || "").split(",").map((s) => s.trim()).filter((t) => t && t !== tag).slice(0, 2) : [];
+  const streak = consecutiveTopStreak(tag, 5);
 
   return `
     <div class="theme-card">
@@ -1654,30 +1761,31 @@ function themeCardHtml(tag, growth, weekRows) {
         <div class="theme-trend-icon">${isNew ? "🆕" : "📈"}</div>
       </div>
       <div class="theme-body">
-        <div class="theme-name">${escapeHtml(tag)}</div>
+        <div class="theme-name">${escapeHtml(tag)} ${rankChangeHtml(tag)}</div>
         <div class="theme-dots">${Array.from({ length: 5 }, (_, i) => `<span class="theme-dot ${i < dotsOn ? "on" : ""}"></span>`).join("")}</div>
         <div class="theme-stat"><span>動画数</span><span>${tagRows.length}本</span></div>
         <div class="theme-stat"><span>週合計再生数</span><span>${formatNum(totalViews)}</span></div>
+        ${streak >= 2 ? `<div class="theme-stat"><span>🔥 ${streak}週連続TOP5</span></div>` : ""}
+        ${rankHistoryHtml(tag, 4)}
         <div class="theme-hashtags">${otherTags.map((t) => `<span class="hashtag">#${escapeHtml(t)}</span>`).join("")}</div>
       </div>
     </div>
   `;
 }
 
-function renderRisingThemes() {
+function themeRankedList() {
   const weeks = weekList();
   const growthMap = computeTagGrowthMap();
   const tags = Object.keys(growthMap);
   const weekRows = rows.filter((r) => r.week_label === weeks[0]);
-  const noteEl = document.getElementById("risingNoteFull");
-
   let ranked;
+  let note;
   if (!weeks[1]) {
-    noteEl.textContent = "先週データがまだ無いため、今週のtrend_score合計 上位タグを表示しています";
+    note = "先週データがまだ無いため、今週のtrend_score合計 上位タグを表示しています";
     const latestTotals = computeTagTrendTotals(weekRows);
     ranked = [...tags].sort((a, b) => latestTotals[b] - latestTotals[a]).map((t) => ({ tag: t, growth: null }));
   } else {
-    noteEl.textContent = `${weeks[1]} → ${weeks[0]} のtrend_score合計 変化`;
+    note = `${weeks[1]} → ${weeks[0]} のtrend_score合計 変化`;
     ranked = tags.map((t) => ({ tag: t, growth: growthMap[t] }))
       .sort((a, b) => {
         const ga = a.growth === "NEW" ? Infinity : a.growth === null ? -Infinity : a.growth;
@@ -1685,9 +1793,47 @@ function renderRisingThemes() {
         return gb - ga;
       });
   }
+  return { ranked, note, weekRows };
+}
 
-  const fullHtml = ranked.map((r) => themeCardHtml(r.tag, r.growth, weekRows)).join("");
-  document.getElementById("risingFullRow").innerHTML = fullHtml || '<div class="status">データがありません</div>';
+function populateRisingTagFilter() {
+  const select = document.getElementById("risingTagFilter");
+  if (!select || select.dataset.populated) return;
+  const { ranked } = themeRankedList();
+  select.innerHTML = '<option value="">すべてのタグ</option>' +
+    ranked.map((r) => `<option value="${escapeHtml(r.tag)}">${escapeHtml(r.tag)}</option>`).join("");
+  select.dataset.populated = "1";
+}
+
+function renderRisingThemes() {
+  populateRisingTagFilter();
+  const { ranked, note, weekRows } = themeRankedList();
+  document.getElementById("risingNoteFull").textContent = note;
+
+  const tagFilter = document.getElementById("risingTagFilter").value;
+  const sortMode = document.getElementById("risingSortSelect").value;
+
+  let list = tagFilter ? ranked.filter((r) => r.tag === tagFilter) : ranked;
+
+  if (sortMode === "count") {
+    list = [...list].sort((a, b) => {
+      const ca = weekRows.filter((r) => (r.tags || "").split(",").map((s) => s.trim()).includes(a.tag)).length;
+      const cb = weekRows.filter((r) => (r.tags || "").split(",").map((s) => s.trim()).includes(b.tag)).length;
+      return cb - ca;
+    });
+  } else if (sortMode === "views") {
+    list = [...list].sort((a, b) => {
+      const va = weekRows.filter((r) => (r.tags || "").split(",").map((s) => s.trim()).includes(a.tag)).reduce((s, r) => s + (r.view_count || 0), 0);
+      const vb = weekRows.filter((r) => (r.tags || "").split(",").map((s) => s.trim()).includes(b.tag)).reduce((s, r) => s + (r.view_count || 0), 0);
+      return vb - va;
+    });
+  } else if (sortMode === "streak") {
+    list = [...list].sort((a, b) => consecutiveTopStreak(b.tag, 5) - consecutiveTopStreak(a.tag, 5));
+  }
+  // "growth" はthemeRankedList()の並びがそのまま急上昇率順なので追加処理不要
+
+  const fullHtml = list.map((r) => themeCardHtml(r.tag, r.growth, weekRows)).join("");
+  document.getElementById("risingFullRow").innerHTML = fullHtml || '<div class="status">該当するタグがありません</div>';
 }
 
 /* ================= レッスン化候補(カード化) ================= */
@@ -1726,34 +1872,56 @@ function lessonCandidateRows() {
   return list;
 }
 
-function renderDashboardExtras() {
-  const themes = (() => {
-    const weeks = weekList();
+function populateLessonTagFilter() {
+  const select = document.getElementById("lessonTagFilter");
+  if (!select || select.dataset.populated) return;
+  const items = lessonCandidateRows();
+  select.innerHTML = '<option value="">すべてのタグ</option>' +
+    items.map((it) => `<option value="${escapeHtml(it.tag)}">${escapeHtml(it.tag)}</option>`).join("");
+  select.dataset.populated = "1";
+}
+
+function renderLessonFullView() {
+  populateLessonTagFilter();
+  let items = lessonCandidateRows();
+  const tagFilter = document.getElementById("lessonTagFilter").value;
+  const sortMode = document.getElementById("lessonSortSelect").value;
+  if (tagFilter) items = items.filter((it) => it.tag === tagFilter);
+
+  if (sortMode === "growth") {
     const growthMap = computeTagGrowthMap();
-    const weekRows = rows.filter((r) => r.week_label === weeks[0]);
-    const tags = Object.keys(growthMap);
-    let ranked;
-    if (!weeks[1]) {
-      const latestTotals = computeTagTrendTotals(weekRows);
-      ranked = [...tags].sort((a, b) => latestTotals[b] - latestTotals[a]).map((t) => ({ tag: t, growth: null }));
-    } else {
-      ranked = tags.map((t) => ({ tag: t, growth: growthMap[t] }))
-        .sort((a, b) => {
-          const ga = a.growth === "NEW" ? Infinity : a.growth === null ? -Infinity : a.growth;
-          const gb = b.growth === "NEW" ? Infinity : b.growth === null ? -Infinity : b.growth;
-          return gb - ga;
-        });
-    }
-    return { ranked: ranked.slice(0, 4), weekRows };
-  })();
+    items = [...items].sort((a, b) => {
+      const ga = growthMap[a.tag];
+      const gb = growthMap[b.tag];
+      const va = ga === "NEW" ? Infinity : typeof ga === "number" ? ga : -Infinity;
+      const vb = gb === "NEW" ? Infinity : typeof gb === "number" ? gb : -Infinity;
+      return vb - va;
+    });
+  } else if (sortMode === "count") {
+    const week = latestWeekLabel();
+    const weekRows = rows.filter((r) => r.week_label === week);
+    items = [...items].sort((a, b) => {
+      const ca = weekRows.filter((r) => (r.tags || "").split(",").map((s) => s.trim()).includes(a.tag)).length;
+      const cb = weekRows.filter((r) => (r.tags || "").split(",").map((s) => s.trim()).includes(b.tag)).length;
+      return cb - ca;
+    });
+  }
+  // sortMode === "score" はlessonCandidateRows()が既にcurriculum_fit_score降順のため追加処理不要
+
+  document.getElementById("lessonFullRow").innerHTML =
+    items.map((it, i) => lessonCardHtml(i + 1, it.row, it.tag)).join("") || '<div class="status">該当するタグがありません</div>';
+}
+
+function renderDashboardExtras() {
+  const themes = themeRankedList();
+  const dashRanked = themes.ranked.slice(0, 4);
   document.getElementById("dashThemeRow").innerHTML =
-    themes.ranked.map((r) => themeCardHtml(r.tag, r.growth, themes.weekRows)).join("") || '<div class="status">データがありません</div>';
+    dashRanked.map((r) => themeCardHtml(r.tag, r.growth, themes.weekRows)).join("") || '<div class="status">データがありません</div>';
 
   const lessonRows = lessonCandidateRows().slice(0, 5);
   document.getElementById("dashLessonRow").innerHTML =
     lessonRows.map((it, i) => lessonCardHtml(i + 1, it.row, it.tag)).join("") || '<div class="status">データがありません</div>';
-  document.getElementById("lessonFullRow").innerHTML =
-    lessonCandidateRows().map((it, i) => lessonCardHtml(i + 1, it.row, it.tag)).join("") || '<div class="status">データがありません</div>';
+  renderLessonFullView();
 
   // 今週の狙い目テーマ(急上昇上位)
   document.getElementById("targetThemeList").innerHTML =
@@ -2053,6 +2221,11 @@ document.getElementById("resetLocalBtn").addEventListener("click", () => {
   renderBoardEverywhere();
   renderDailyChecklist();
 });
+
+document.getElementById("risingTagFilter").addEventListener("change", renderRisingThemes);
+document.getElementById("risingSortSelect").addEventListener("change", renderRisingThemes);
+document.getElementById("lessonTagFilter").addEventListener("change", renderLessonFullView);
+document.getElementById("lessonSortSelect").addEventListener("change", renderLessonFullView);
 
 setGreeting();
 loadData();
