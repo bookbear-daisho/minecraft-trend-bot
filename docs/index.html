@@ -77,12 +77,18 @@
 
   .main-col { display: flex; flex-direction: column; min-width: 0; }
   .topbar {
-    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
     padding: 16px 24px; background: var(--panel); border-bottom: 1px solid var(--border);
   }
   .greeting { font-weight: 800; font-size: 1.15rem; }
   .greeting-sub { color: var(--text-muted); font-size: 0.8rem; margin-top: 2px; }
-  .topbar-right { display: flex; align-items: center; gap: 14px; }
+  .topbar-search-wrap { flex: 1 1 260px; max-width: 360px; }
+  .topbar-search {
+    width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 999px;
+    padding: 8px 14px; font-size: 0.82rem; color: var(--text);
+  }
+  .topbar-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .print-btn { padding: 8px 14px; font-size: 0.78rem; white-space: nowrap; }
   .topbar-date { font-size: 0.85rem; color: var(--text-muted); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
   .bell { position: relative; font-size: 1.15rem; }
   .bell-count {
@@ -90,6 +96,15 @@
     font-size: 0.62rem; font-weight: 700; border-radius: 999px; padding: 1px 5px; min-width: 15px; text-align: center;
   }
   .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+
+  @media print {
+    .sidebar, .topbar, .chip-row, .board-columns, .btn-primary, .btn-ghost,
+    .add-to-board-btn, .format-toggle, .rail-widget { display: none !important; }
+    .app { display: block; }
+    .content { padding: 0; max-width: 100%; }
+    .dash-grid { grid-template-columns: 1fr; display: block; }
+    .panel { break-inside: avoid; border: 1px solid #ccc; box-shadow: none; }
+  }
 
   .content { padding: 20px 24px 64px; max-width: 1280px; width: 100%; margin: 0 auto; }
   .view { display: none; }
@@ -109,6 +124,8 @@
   /* --- Layout: dashboard 2-col with right rail --- */
   .dash-grid { display: grid; grid-template-columns: 1fr 300px; gap: 18px; align-items: start; }
   @media (max-width: 1000px) { .dash-grid { grid-template-columns: 1fr; } }
+  .history-charts-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  @media (max-width: 900px) { .history-charts-grid { grid-template-columns: 1fr; } }
 
   /* --- Filter chips --- */
   .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
@@ -375,7 +392,11 @@
         <div class="greeting" id="greetingText">おはようございます!👋</div>
         <div class="greeting-sub">AIが今日のおすすめ企画を提案します</div>
       </div>
+      <div class="topbar-search-wrap">
+        <input type="text" id="globalSearchInput" class="topbar-search" placeholder="🔍 動画タイトル・テーマで検索(全期間・Enterで検索)" />
+      </div>
       <div class="topbar-right">
+        <button type="button" class="btn-ghost print-btn" id="printReportBtn">🖨️ レポートを印刷/PDF保存</button>
         <div class="topbar-date" id="topbarDate"></div>
         <div class="bell">🔔<span class="bell-count" id="bellCount" style="display:none">0</span></div>
         <div class="avatar">🧑‍🚀</div>
@@ -657,6 +678,48 @@
             <table>
               <thead><tr><th>タグ</th><th class="num">今週件数</th><th class="num">trend_score合計</th><th class="num">先週比</th></tr></thead>
               <tbody id="tagDetailTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">📊 トレンド履歴(タグ別・複数週の推移)</div>
+          <div class="field" style="max-width:280px;margin-bottom:14px;">
+            <label for="historyTagSelect">タグを選択</label>
+            <select id="historyTagSelect"></select>
+          </div>
+          <div class="history-charts-grid">
+            <div>
+              <div class="panel-title" style="font-size:0.8rem;">順位推移(1位が最上位)</div>
+              <div class="chart-box" style="height:200px;"><canvas id="historyRankChart"></canvas></div>
+            </div>
+            <div>
+              <div class="panel-title" style="font-size:0.8rem;">投稿数推移</div>
+              <div class="chart-box" style="height:200px;"><canvas id="historyCountChart"></canvas></div>
+            </div>
+            <div>
+              <div class="panel-title" style="font-size:0.8rem;">平均再生数推移</div>
+              <div class="chart-box" style="height:200px;"><canvas id="historyViewChart"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">📆 週の比較</div>
+          <div class="filters" style="margin-bottom:14px;">
+            <div class="field" style="flex:0 1 200px;">
+              <label for="compareWeekA">比較する週 A</label>
+              <select id="compareWeekA"></select>
+            </div>
+            <div class="field" style="flex:0 1 200px;">
+              <label for="compareWeekB">比較する週 B</label>
+              <select id="compareWeekB"></select>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>タグ</th><th class="num">投稿数(A)</th><th class="num">投稿数(B)</th><th class="num">差分</th><th class="num">trend_score合計(A)</th><th class="num">trend_score合計(B)</th><th class="num">差分</th></tr></thead>
+              <tbody id="compareTable"></tbody>
             </table>
           </div>
         </div>
@@ -952,7 +1015,10 @@ function switchView(view) {
   // レイアウト確定後にチャート生成を行う。requestAnimationFrameはタブが非アクティブだと
   // 発火が止まることがあるため、setTimeoutを使う。
   setTimeout(() => {
-    if (view === "tagTrend") { renderTagChart(getFiltered()); renderTrendChart(); renderTagDetailTable(); }
+    if (view === "tagTrend") {
+      renderTagChart(getFiltered()); renderTrendChart(); renderTagDetailTable();
+      renderTagHistoryCharts(); renderWeekCompare();
+    }
     if (view === "competitor") { renderChannelChart(getFiltered()); }
   }, 0);
   if (view === "channelAnalysis") { renderChannelAnalysisTable(); }
@@ -2067,6 +2133,115 @@ function renderTagDetailTable() {
   }).join("");
 }
 
+/* ================= トレンド履歴(タグ別・複数週) ================= */
+let historyRankChart, historyCountChart, historyViewChart;
+
+function computeTagWeeklyHistory(tag) {
+  const { weeks } = computeWeeklyTagRanks();
+  const weeksAsc = [...weeks].reverse();
+  const { perWeek } = computeWeeklyTagRanks();
+  const rankSeries = weeksAsc.map((w) => tagRankInWeek(perWeek, w, tag));
+  const countSeries = weeksAsc.map((w) => rows.filter((r) => r.week_label === w && (r.tags || "").split(",").map((s) => s.trim()).includes(tag)).length);
+  const avgViewSeries = weeksAsc.map((w) => {
+    const wRows = rows.filter((r) => r.week_label === w && (r.tags || "").split(",").map((s) => s.trim()).includes(tag));
+    return wRows.length > 0 ? Math.round(wRows.reduce((s, r) => s + (r.view_count || 0), 0) / wRows.length) : 0;
+  });
+  return { weeksAsc, rankSeries, countSeries, avgViewSeries };
+}
+
+function populateHistoryTagSelect() {
+  const select = document.getElementById("historyTagSelect");
+  const { perWeek, weeks } = computeWeeklyTagRanks();
+  const tags = (perWeek[weeks[0]] || []);
+  const current = select.value;
+  select.innerHTML = tags.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+  if (current && tags.includes(current)) select.value = current;
+}
+
+function renderTagHistoryCharts() {
+  populateHistoryTagSelect();
+  const tag = document.getElementById("historyTagSelect").value;
+  if (!tag) return;
+  const { weeksAsc, rankSeries, countSeries, avgViewSeries } = computeTagWeeklyHistory(tag);
+
+  if (historyRankChart) historyRankChart.destroy();
+  const rankCanvas = document.getElementById("historyRankChart");
+  if (rankCanvas) {
+    historyRankChart = new Chart(rankCanvas, {
+      type: "line",
+      data: { labels: weeksAsc, datasets: [{ label: "順位", data: rankSeries, borderColor: "#2f9e44", backgroundColor: "#2f9e4433", spanGaps: true, tension: 0.2 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { reverse: true, ticks: { precision: 0 }, beginAtZero: false } } },
+    });
+  }
+
+  if (historyCountChart) historyCountChart.destroy();
+  const countCanvas = document.getElementById("historyCountChart");
+  if (countCanvas) {
+    historyCountChart = new Chart(countCanvas, {
+      type: "line",
+      data: { labels: weeksAsc, datasets: [{ label: "投稿数", data: countSeries, borderColor: "#2f7ee8", backgroundColor: "#2f7ee833", tension: 0.2, fill: true }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } },
+    });
+  }
+
+  if (historyViewChart) historyViewChart.destroy();
+  const viewCanvas = document.getElementById("historyViewChart");
+  if (viewCanvas) {
+    historyViewChart = new Chart(viewCanvas, {
+      type: "line",
+      data: { labels: weeksAsc, datasets: [{ label: "平均再生数", data: avgViewSeries, borderColor: "#e08a2f", backgroundColor: "#e08a2f33", tension: 0.2, fill: true }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
+    });
+  }
+}
+
+/* ================= 週の比較 ================= */
+function populateCompareWeekSelects() {
+  const weeks = weekList();
+  const optionsHtml = weeks.map((w) => `<option value="${w}">${w}</option>`).join("");
+  const selA = document.getElementById("compareWeekA");
+  const selB = document.getElementById("compareWeekB");
+  if (!selA.dataset.populated) {
+    selA.innerHTML = optionsHtml;
+    selA.value = weeks[0] || "";
+    selA.dataset.populated = "1";
+  }
+  if (!selB.dataset.populated) {
+    selB.innerHTML = optionsHtml;
+    selB.value = weeks[1] || weeks[0] || "";
+    selB.dataset.populated = "1";
+  }
+}
+
+function renderWeekCompare() {
+  populateCompareWeekSelects();
+  const weekA = document.getElementById("compareWeekA").value;
+  const weekB = document.getElementById("compareWeekB").value;
+  const rowsA = rows.filter((r) => r.week_label === weekA);
+  const rowsB = rows.filter((r) => r.week_label === weekB);
+  const totalsA = computeTagTrendTotals(rowsA);
+  const totalsB = computeTagTrendTotals(rowsB);
+  const countsA = {};
+  rowsA.forEach((r) => (r.tags || "").split(",").map((s) => s.trim()).filter(Boolean).forEach((t) => { countsA[t] = (countsA[t] || 0) + 1; }));
+  const countsB = {};
+  rowsB.forEach((r) => (r.tags || "").split(",").map((s) => s.trim()).filter(Boolean).forEach((t) => { countsB[t] = (countsB[t] || 0) + 1; }));
+
+  const allTags = Array.from(new Set([...Object.keys(totalsA), ...Object.keys(totalsB)]))
+    .sort((a, b) => (totalsA[b] || 0) - (totalsA[a] || 0));
+
+  function diffText(n) { return `${n >= 0 ? "+" : ""}${formatNum(n)}`; }
+
+  document.getElementById("compareTable").innerHTML = allTags.map((t) => {
+    const cA = countsA[t] || 0, cB = countsB[t] || 0;
+    const tA = totalsA[t] || 0, tB = totalsB[t] || 0;
+    return `<tr>
+      <td>#${escapeHtml(t)}</td>
+      <td class="num">${cA}</td><td class="num">${cB}</td><td class="num">${diffText(cA - cB)}</td>
+      <td class="num">${formatNum(tA)}</td><td class="num">${formatNum(tB)}</td><td class="num">${diffText(tA - tB)}</td>
+    </tr>`;
+  }).join("") || '<tr><td colspan="7" class="status">データがありません</td></tr>';
+}
+
 /* ================= チャンネル分析ビュー ================= */
 function renderChannelAnalysisTable() {
   const filtered = getFiltered();
@@ -2226,6 +2401,28 @@ document.getElementById("risingTagFilter").addEventListener("change", renderRisi
 document.getElementById("risingSortSelect").addEventListener("change", renderRisingThemes);
 document.getElementById("lessonTagFilter").addEventListener("change", renderLessonFullView);
 document.getElementById("lessonSortSelect").addEventListener("change", renderLessonFullView);
+document.getElementById("historyTagSelect").addEventListener("change", renderTagHistoryCharts);
+document.getElementById("compareWeekA").addEventListener("change", renderWeekCompare);
+document.getElementById("compareWeekB").addEventListener("change", renderWeekCompare);
+
+// 全期間を対象にしたグローバル検索。動画候補一覧の既存フィルター
+// (週=すべての週・キーワード)をそのまま利用する。
+document.getElementById("globalSearchInput").addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  const q = e.target.value.trim();
+  if (!q) return;
+  switchView("videos");
+  document.getElementById("weekSelect").value = "";
+  document.getElementById("keywordInput").value = q;
+  render();
+});
+
+// レポート印刷/PDF保存。ダッシュボードの企画会議サマリー・おすすめ・
+// 急上昇テーマ・レッスン化候補をブラウザの印刷機能でPDF化できるようにする。
+document.getElementById("printReportBtn").addEventListener("click", () => {
+  switchView("dashboard");
+  setTimeout(() => window.print(), 100);
+});
 
 setGreeting();
 loadData();
