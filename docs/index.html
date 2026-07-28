@@ -343,6 +343,23 @@
   .glossary-body dt:first-child { margin-top: 0; }
   .glossary-body dd { margin: 2px 0 0; }
   .updated-badge { display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 3px 10px; font-size: 0.75rem; font-weight: 600; }
+  .freshness-badge { font-size: 0.75rem; font-weight: 700; padding: 4px 11px; border-radius: 999px; white-space: nowrap; }
+  .freshness-badge.ok { background: var(--accent-soft); color: var(--accent); }
+  .freshness-badge.warn { background: var(--coral-soft); color: var(--coral); }
+
+  .pin-btn {
+    position: absolute; top: 6px; left: 6px;
+    border: none; background: rgba(0,0,0,0.45); color: #fff; border-radius: 50%;
+    width: 22px; height: 22px; font-size: 0.8rem; cursor: pointer; line-height: 1;
+    display: flex; align-items: center; justify-content: center; z-index: 1;
+  }
+  .pin-btn.pinned { background: var(--amber, #e0a52f); color: #fff; }
+  .pinned-list { list-style: none; margin: 0; padding: 0; }
+  .pinned-list li { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; padding: 6px 0; border-bottom: 1px solid var(--border); gap: 6px; }
+  .pinned-list li:last-child { border-bottom: none; }
+  .pinned-list .pinned-tag-name { cursor: pointer; font-weight: 600; }
+  .pinned-list .pinned-tag-name:hover { color: var(--accent); }
+  .pinned-unpin { border: none; background: none; color: var(--text-muted); cursor: pointer; font-size: 0.85rem; }
   .add-to-board-btn {
     border: 1px solid var(--border); background: var(--panel); color: var(--text-muted); border-radius: 999px;
     padding: 3px 10px; font-size: 0.7rem; cursor: pointer; font-weight: 700;
@@ -396,6 +413,7 @@
         <input type="text" id="globalSearchInput" class="topbar-search" placeholder="🔍 動画タイトル・テーマで検索(全期間・Enterで検索)" />
       </div>
       <div class="topbar-right">
+        <span class="freshness-badge" id="freshnessBadge" style="display:none"></span>
         <button type="button" class="btn-ghost print-btn" id="printReportBtn">🖨️ レポートを印刷/PDF保存</button>
         <div class="topbar-date" id="topbarDate"></div>
         <div class="bell">🔔<span class="bell-count" id="bellCount" style="display:none">0</span></div>
@@ -441,6 +459,10 @@
           </div>
 
           <div>
+            <div class="rail-widget">
+              <div class="rail-title">⭐ お気に入りテーマ</div>
+              <ul class="pinned-list" id="pinnedThemeList"></ul>
+            </div>
             <div class="rail-widget">
               <div class="rail-title">✅ 今日のアクション</div>
               <div id="dailyChecklist"></div>
@@ -843,9 +865,80 @@ const DEFAULT_VIDEO_CONTENT = {
 
 const LESSON_FIT_REASONS = ["プログラミング要素が多い", "小学生でも理解しやすい", "達成感が大きい", "発展学習に繋げやすい"];
 
-/* ================= localStorage: 企画ボード・チェックリスト(この端末のみ) ================= */
+/* ================= localStorage: 企画ボード・チェックリスト・お気に入り(この端末のみ) ================= */
 const BOARD_KEY = "nikorihito_plan_board_v1";
 const CHECKLIST_KEY = "nikorihito_daily_checklist_v1";
+const PIN_KEY = "nikorihito_pinned_tags_v1";
+
+function loadPinnedTags() {
+  try { return JSON.parse(localStorage.getItem(PIN_KEY)) || []; } catch (e) { return []; }
+}
+function savePinnedTags(tags) { localStorage.setItem(PIN_KEY, JSON.stringify(tags)); }
+function isTagPinned(tag) { return loadPinnedTags().includes(tag); }
+
+function togglePinTag(tag) {
+  const pinned = loadPinnedTags();
+  const idx = pinned.indexOf(tag);
+  if (idx === -1) pinned.push(tag);
+  else pinned.splice(idx, 1);
+  savePinnedTags(pinned);
+  renderPinnedThemeList();
+  document.querySelectorAll(`[data-pin-tag="${cssEscapeAttr(tag)}"]`).forEach((btn) => {
+    btn.classList.toggle("pinned", isTagPinned(tag));
+    btn.textContent = isTagPinned(tag) ? "★" : "☆";
+  });
+}
+
+function cssEscapeAttr(s) { return String(s).replace(/"/g, '\\"'); }
+
+function pinButtonHtml(tag) {
+  const pinned = isTagPinned(tag);
+  return `<button type="button" class="pin-btn${pinned ? " pinned" : ""}" data-pin-tag="${escapeHtml(tag)}" title="お気に入りに登録/解除">${pinned ? "★" : "☆"}</button>`;
+}
+
+function bindPinButtons(root) {
+  (root || document).querySelectorAll("[data-pin-tag]").forEach((btn) => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      togglePinTag(btn.dataset.pinTag);
+    });
+  });
+}
+
+// お気に入り登録したテーマを、最新週の実データ(順位変動・動画数)とあわせて
+// ダッシュボードの右サイドに一覧表示する。
+function renderPinnedThemeList() {
+  const el = document.getElementById("pinnedThemeList");
+  if (!el) return;
+  const pinned = loadPinnedTags();
+  if (pinned.length === 0) {
+    el.innerHTML = '<li class="status">急上昇テーマの☆アイコンから登録できます</li>';
+    return;
+  }
+  const week = latestWeekLabel();
+  const weekRows = rows.filter((r) => r.week_label === week);
+  el.innerHTML = pinned.map((tag) => {
+    const count = weekRows.filter((r) => (r.tags || "").split(",").map((s) => s.trim()).includes(tag)).length;
+    return `
+      <li>
+        <span class="pinned-tag-name" data-goto-tag="${escapeHtml(tag)}">#${escapeHtml(tag)} ${rankChangeHtml(tag)}</span>
+        <span>${count}本 <button type="button" class="pinned-unpin" data-pin-tag="${escapeHtml(tag)}" title="解除">✕</button></span>
+      </li>
+    `;
+  }).join("");
+  bindPinButtons(el);
+  el.querySelectorAll("[data-goto-tag]").forEach((span) => {
+    span.addEventListener("click", () => {
+      switchView("rising");
+      const filter = document.getElementById("risingTagFilter");
+      filter.value = span.dataset.gotoTag;
+      renderRisingThemes();
+    });
+  });
+}
 const BOARD_STATUSES = ["気になる動画", "企画中", "撮影予定", "編集中", "投稿済み"];
 const BOARD_COLORS = { "気になる動画": "var(--indigo)", "企画中": "var(--blue)", "撮影予定": "var(--orange)", "編集中": "var(--accent)", "投稿済み": "var(--coral)" };
 
@@ -1071,6 +1164,11 @@ async function loadData() {
   render();
 }
 
+// 週次バッチが止まっていることに気づけるよう、最終更新からの経過日数を
+// ヘッダーに常時表示する。通常は7日おきに更新される想定なので、
+// 8日を超えたら「更新が止まっているかもしれない」警告として扱う。
+const STALE_DATA_THRESHOLD_DAYS = 8;
+
 function showUpdatedBadge() {
   const latest = rows.reduce((max, r) => (r.created_at && r.created_at > max ? r.created_at : max), "");
   if (!latest) return;
@@ -1080,6 +1178,17 @@ function showUpdatedBadge() {
   });
   document.getElementById("updatedAt").textContent = `${text} JST`;
   document.getElementById("updatedBadge").style.display = "inline-flex";
+
+  const daysSince = (Date.now() - new Date(latest).getTime()) / 86400000;
+  const badge = document.getElementById("freshnessBadge");
+  if (daysSince > STALE_DATA_THRESHOLD_DAYS) {
+    badge.textContent = `⚠️ ${Math.floor(daysSince)}日更新がありません`;
+    badge.className = "freshness-badge warn";
+  } else {
+    badge.textContent = "🟢 データは最新";
+    badge.className = "freshness-badge ok";
+  }
+  badge.style.display = "inline-flex";
 }
 
 function uniqueValues(key, splitComma) {
@@ -1825,6 +1934,7 @@ function themeCardHtml(tag, growth, weekRows) {
       <div class="theme-thumb">
         ${topVideo && topVideo.thumbnail_url ? `<img src="${topVideo.thumbnail_url}" alt="" loading="lazy" />` : ""}
         <div class="theme-trend-icon">${isNew ? "🆕" : "📈"}</div>
+        ${pinButtonHtml(tag)}
       </div>
       <div class="theme-body">
         <div class="theme-name">${escapeHtml(tag)} ${rankChangeHtml(tag)}</div>
@@ -1899,7 +2009,9 @@ function renderRisingThemes() {
   // "growth" はthemeRankedList()の並びがそのまま急上昇率順なので追加処理不要
 
   const fullHtml = list.map((r) => themeCardHtml(r.tag, r.growth, weekRows)).join("");
-  document.getElementById("risingFullRow").innerHTML = fullHtml || '<div class="status">該当するタグがありません</div>';
+  const risingEl = document.getElementById("risingFullRow");
+  risingEl.innerHTML = fullHtml || '<div class="status">該当するタグがありません</div>';
+  bindPinButtons(risingEl);
 }
 
 /* ================= レッスン化候補(カード化) ================= */
@@ -1981,8 +2093,11 @@ function renderLessonFullView() {
 function renderDashboardExtras() {
   const themes = themeRankedList();
   const dashRanked = themes.ranked.slice(0, 4);
-  document.getElementById("dashThemeRow").innerHTML =
+  const dashThemeEl = document.getElementById("dashThemeRow");
+  dashThemeEl.innerHTML =
     dashRanked.map((r) => themeCardHtml(r.tag, r.growth, themes.weekRows)).join("") || '<div class="status">データがありません</div>';
+  bindPinButtons(dashThemeEl);
+  renderPinnedThemeList();
 
   const lessonRows = lessonCandidateRows().slice(0, 5);
   document.getElementById("dashLessonRow").innerHTML =
