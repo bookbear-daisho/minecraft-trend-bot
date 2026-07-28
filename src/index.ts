@@ -48,7 +48,7 @@ async function main(): Promise<void> {
 
   console.log("[8/8] Adaptive Cardを作成してTeamsへ投稿中...");
   const trendSummary = buildTrendSummary(scoredVideos);
-  const card = buildAdaptiveCard(scoredVideos, trendSummary);
+  const card = buildAdaptiveCard(scoredVideos, trendSummary, previousSnapshot?.videos ?? []);
   await postToTeams(card);
 
   console.log("完了しました。");
