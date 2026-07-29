@@ -282,16 +282,6 @@ export function buildAdaptiveCard(
   // 「なぜ注目?→ダッシュボード」が本命の導線、「動画を見る」は補助導線という
   // 優先順位を、ボタンのスタイル(positive=強調)でも伝える。
   const dashboardActions: AdaptiveCard[] = [
-    ...(SHAREPOINT_DASHBOARD_URL
-      ? [
-          {
-            type: "Action.OpenUrl",
-            title: "📊 分析ダッシュボードを開く(SharePoint)",
-            style: "positive",
-            url: SHAREPOINT_DASHBOARD_URL,
-          },
-        ]
-      : []),
     ...(SUPABASE_DASHBOARD_URL
       ? [
           {
@@ -299,6 +289,16 @@ export function buildAdaptiveCard(
             title: "📊 分析ダッシュボードを開く(Web)",
             style: "positive",
             url: SUPABASE_DASHBOARD_URL,
+          },
+        ]
+      : []),
+    ...(SHAREPOINT_DASHBOARD_URL
+      ? [
+          {
+            type: "Action.OpenUrl",
+            title: "📊 分析ダッシュボードを開く(SharePoint)",
+            style: "positive",
+            url: SHAREPOINT_DASHBOARD_URL,
           },
         ]
       : []),
