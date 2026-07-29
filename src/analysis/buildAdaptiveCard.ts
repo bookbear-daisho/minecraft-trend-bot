@@ -65,10 +65,19 @@ function representativeVideo(videos: VideoRecord[], tag: string): VideoRecord | 
   return [...videos].filter((v) => v.tags.includes(tag)).sort((a, b) => (b.trendScore ?? 0) - (a.trendScore ?? 0))[0];
 }
 
+// 見出しには具体的な数値(%)を入れない。「何の%か」が伝わらないまま
+// 誤解を招くことがあるため、数値の中身は「なぜ今注目?」で説明する。
 function headlineFor(tag: string, growth: FeaturedTag["growth"]): string {
   if (growth === "NEW") return `${tag}系が新しく登場`;
-  if (typeof growth === "number" && growth > 20) return `${tag}系が急上昇(先週比+${Math.round(growth)}%)`;
+  if (typeof growth === "number" && growth > 20) return `${tag}系が急上昇中`;
   return `${tag}系が今週の注目テーマ`;
+}
+
+// 「なぜ今注目?」ボタンをクリックすると何が見られるかを一言添える。
+function toggleButtonTitleFor(growth: FeaturedTag["growth"]): string {
+  if (growth === "NEW") return "🔥 なぜ話題に? → 新しく登場した理由を見る";
+  if (typeof growth === "number" && growth > 20) return "🔥 なぜ急上昇? → 先週から伸びた理由を見る";
+  return "🔥 なぜ注目? → 今週の注目理由を見る";
 }
 
 /**
@@ -81,7 +90,9 @@ function buildTagReasons(tag: string, videos: VideoRecord[], growth: FeaturedTag
   const reasons: string[] = [];
 
   if (growth === "NEW") reasons.push("先週は無かった新しいテーマ");
-  else if (typeof growth === "number" && growth > 20) reasons.push(`先週比 +${Math.round(growth)}% の伸び`);
+  else if (typeof growth === "number" && growth > 20) {
+    reasons.push(`カテゴリ全体の話題性(trend_score合計)が先週比 +${Math.round(growth)}%`);
+  }
 
   const avgTagView = average(tagVideos.map((v) => v.viewCount));
   const avgAllView = average(videos.map((v) => v.viewCount));
@@ -189,7 +200,7 @@ function buildFeaturedSection(videos: VideoRecord[], previousVideos: VideoRecord
       actions: [
         {
           type: "Action.ToggleVisibility",
-          title: "🔥 なぜ今注目? ▼クリック",
+          title: toggleButtonTitleFor(featured.growth),
           style: "positive",
           targetElements: ["reasonsContainer"],
         },
