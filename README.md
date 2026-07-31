@@ -171,7 +171,9 @@ npm start
    - `SHAREPOINT_SITE_HOSTNAME`
    - `SHAREPOINT_SITE_PATH`
    - `SHAREPOINT_DASHBOARD_URL`
-   - (`SHAREPOINT_LIST_NAME`と`SHAREPOINT_SAVE_TOP_N`は`weekly.yml`内に直接値を書いているためSecrets登録不要です)
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - (`SHAREPOINT_LIST_NAME`・`SHAREPOINT_SAVE_TOP_N`・`SUPABASE_TABLE_NAME`・`SUPABASE_SAVE_TOP_N`・`SUPABASE_DASHBOARD_URL`は`weekly.yml`内に直接値を書いているためSecrets登録不要です)
 2. 手動実行して動作確認したい場合は、Actionsタブから該当ワークフローを選び「Run workflow」(`workflow_dispatch`)を実行してください。
 
 **データ永続化に関する注意**: GitHub Actionsの実行環境は毎回使い捨てのため、`data/latest.json` をリポジトリにコミットして永続化しないと、次回実行時に「前回データ」が読み込めず、常に初回相当の仮計算になってしまいます。そのため `weekly.yml` には実行後に `data/` の変更を自動コミット&プッシュするステップを含めています。この挙動が不要、または別の永続化方法(後述のGoogle Sheets / Supabaseなど)に切り替える場合は、該当ステップを削除してください。
