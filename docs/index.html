@@ -60,7 +60,24 @@
     background: var(--panel); border-right: 1px solid var(--border);
     padding: 18px 12px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
   }
-  @media (max-width: 860px) { .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); } }
+  .hamburger-btn { display: none; }
+  .sidebar-overlay { display: none; }
+  @media (max-width: 860px) {
+    .hamburger-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 36px; height: 36px; border: 1px solid var(--border); background: var(--panel);
+      border-radius: 8px; font-size: 1.2rem; cursor: pointer; color: var(--text); flex-shrink: 0;
+    }
+    .sidebar {
+      position: fixed; top: 0; left: 0; z-index: 101; width: 240px; max-width: 82vw;
+      transform: translateX(-100%); transition: transform 0.25s ease;
+      box-shadow: 2px 0 16px rgba(0,0,0,0.2);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-overlay.open {
+      display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100;
+    }
+  }
   .brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 16px; }
   .brand-icon { font-size: 1.6rem; }
   .brand-text { font-weight: 800; font-size: 0.92rem; line-height: 1.3; }
@@ -379,6 +396,7 @@
 </head>
 <body>
 <div class="app">
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
   <aside class="sidebar">
     <div class="brand">
       <span class="brand-icon">⛏️</span>
@@ -405,6 +423,7 @@
 
   <div class="main-col">
     <header class="topbar">
+      <button type="button" class="hamburger-btn" id="hamburgerBtn" aria-label="メニューを開く">☰</button>
       <div>
         <div class="greeting" id="greetingText">おはようございます!👋</div>
         <div class="greeting-sub">AIが今日のおすすめ企画を提案します</div>
@@ -1121,8 +1140,26 @@ function switchView(view) {
   window.scrollTo({ top: 0 });
 }
 
+/* ================= mobile sidebar (hamburger menu) ================= */
+const sidebarEl = document.querySelector(".sidebar");
+const sidebarOverlayEl = document.getElementById("sidebarOverlay");
+const hamburgerBtn = document.getElementById("hamburgerBtn");
+
+function openSidebar() {
+  sidebarEl.classList.add("open");
+  sidebarOverlayEl.classList.add("open");
+}
+function closeSidebar() {
+  sidebarEl.classList.remove("open");
+  sidebarOverlayEl.classList.remove("open");
+}
+hamburgerBtn.addEventListener("click", () => {
+  sidebarEl.classList.contains("open") ? closeSidebar() : openSidebar();
+});
+sidebarOverlayEl.addEventListener("click", closeSidebar);
+
 document.querySelectorAll(".nav-item").forEach((btn) => {
-  btn.addEventListener("click", () => switchView(btn.dataset.view));
+  btn.addEventListener("click", () => { switchView(btn.dataset.view); closeSidebar(); });
 });
 document.addEventListener("click", (e) => {
   const link = e.target.closest("[data-goto]");
